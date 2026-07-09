@@ -442,11 +442,21 @@ def fetch_class_airspace(bbox):
         "spatialRel": "esriSpatialRelIntersects",
         "outFields": "NAME,ICAO_ID,CLASS,UPPER_VAL,LOWER_VAL,UPPER_UOM,LOWER_UOM",
         "returnGeometry": "true", "outSR": "4326", "f": "json"})
-    try:
-        j = json.loads(http(url + "?" + params, timeout=45, ua="Mozilla/5.0"))
-    except Exception as e:
-        print(f"  Class airspace fetch failed ({e}); skipping B/C/D")
-        return []
+    # the FAA server sometimes throttles by returning an empty result (no error) — retry
+    # a few times so a brief hiccup doesn't permanently drop an airport's Class B/C/D
+    j = {"features": []}
+    for attempt in range(3):
+        try:
+            r = json.loads(http(url + "?" + params, timeout=45, ua="Mozilla/5.0"))
+            j = r
+            if r.get("features"): break               # got airspace — done
+        except Exception as e:
+            print(f"  Class airspace attempt {attempt+1}/3 failed ({e})")
+        if attempt < 2:                               # empty/error → FAA server likely busy
+            print(f"  FAA airspace server busy, retrying in {6*(attempt+1)}s…", flush=True)
+            time.sleep(6*(attempt+1))
+    if not j.get("features"):
+        print("  (no Class B/C/D returned — none nearby, or re-run --rebuild later to retry)")
     def ft(v, uom):
         if v is None: return None
         return int(v) if (uom or "FT") == "FT" else int(v) * 100
