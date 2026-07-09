@@ -1,0 +1,2138 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight Radar TV</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#000000">
+<style>
+  /* ===== EFIS Cockpit theme (approved palette — HANDOFF.md) ===== */
+  :root{
+    --bg:#000000;
+    --land:#1A2312;
+    --water:#0D2D45;
+    --map:#56616E;
+    --rings:#1C232B;
+    --dim:#7C8790;
+    --chip:#39424B;
+    --sel:#FFB02E;
+    --lo:#26E066;   /* < 10,000 ft  */
+    --mid:#24C9E8;  /* 10–25,000 ft */
+    --hi:#E858E8;   /* > 25,000 ft  */
+    --mono:"Cascadia Mono","Consolas","Roboto Mono","Menlo",monospace;
+  }
+  html,body{height:100%;}
+  body{margin:0;background:var(--bg);overflow:hidden;font-family:var(--mono);
+       -webkit-font-smoothing:antialiased;}
+
+  /* Fixed 1920×1080 stage, scaled to fit the window (TV proportions preserved) */
+  #stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;
+         transform:translate(-50%,-50%) scale(1);transform-origin:center;
+         display:flex;background:var(--bg);}
+
+  #radarWrap{position:relative;width:1560px;height:1080px;flex:none;}
+  #radar{position:absolute;inset:0;width:1560px;height:1080px;cursor:crosshair;}
+
+  /* --- overlays on the radar --- */
+  .ident{position:absolute;left:28px;top:22px;color:var(--dim);font-size:20px;
+         letter-spacing:.18em;text-shadow:0 0 6px #000,0 1px 3px #000;}
+  .ident b{color:#B9C2CA;font-weight:600;}
+  .ctlBox{position:absolute;left:28px;bottom:26px;display:flex;flex-direction:column;gap:9px;
+          background:rgba(0,0,0,.55);border:1px solid rgba(57,66,75,.7);border-radius:4px;
+          padding:12px 14px;}
+  .ctlBody{display:flex;flex-direction:column;gap:9px;}
+  .ctlBox.collapsed .ctlBody{display:none;}
+  .ctlTog{color:var(--dim);font-size:13px;letter-spacing:.14em;cursor:pointer;
+          user-select:none;align-self:flex-start;}
+  .ctlTog:hover{color:#C9D1D8;}
+  .ctlTog:focus-visible{outline:1px solid var(--sel);outline-offset:2px;}
+  .ctlRow{display:flex;gap:8px;align-items:center;}
+  .ctlRow .lbl{color:var(--dim);font-size:14px;letter-spacing:.14em;width:52px;}
+  .rchip{padding:6px 13px;border:1px solid var(--chip);color:var(--dim);font-size:15px;
+         border-radius:3px;cursor:pointer;user-select:none;background:rgba(0,0,0,.55);}
+  .rchip.on{border-color:var(--sel);color:var(--sel);}
+  .hint{position:absolute;right:24px;bottom:28px;color:#4A545D;font-size:14px;
+        letter-spacing:.08em;}
+  #emerg{position:absolute;top:20px;left:50%;transform:translateX(-50%);display:none;
+         padding:10px 24px;border:2px solid #FF4545;color:#FF6B6B;z-index:5;
+         background:rgba(64,0,0,.85);font-size:22px;letter-spacing:.12em;
+         border-radius:4px;animation:pulse 1s ease-in-out infinite;}
+  .arrv{margin-top:12px;color:#8FB6C9;font-size:14px;letter-spacing:.06em;
+        border:1px solid #131B22;border-radius:3px;padding:8px 12px;}
+  .arrv b{color:#C6E3F0;font-weight:600;}
+
+  /* ===== Info side panel ===== */
+  #panel{width:360px;height:1080px;flex:none;box-sizing:border-box;
+         border-left:1px solid var(--chip);display:flex;flex-direction:column;
+         padding:24px 22px;gap:0;background:#03060A;}
+  .phead{display:flex;justify-content:space-between;align-items:baseline;}
+  .phead .site{color:var(--dim);font-size:15px;letter-spacing:.16em;}
+  .clock{color:#D7DEE4;font-size:30px;font-variant-numeric:tabular-nums;letter-spacing:.04em;}
+  .clock small{color:var(--dim);font-size:18px;}
+  .clockBox{display:flex;flex-direction:column;align-items:flex-end;}
+  .lcl{color:var(--dim);font-size:14px;margin-top:2px;letter-spacing:.06em;
+       font-variant-numeric:tabular-nums;}
+
+  .photo{margin-top:20px;height:198px;border:1px solid var(--chip);border-radius:3px;
+         background:linear-gradient(180deg,#0A121B 0%,#060A10 100%);position:relative;
+         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+  .photo svg{opacity:.85;}
+  .photo .note{color:#4A545D;font-size:12px;letter-spacing:.14em;}
+  .credit{margin-top:6px;color:#4A545D;font-size:12px;text-align:right;}
+
+  .cs{margin-top:18px;display:flex;align-items:baseline;gap:12px;}
+  .cs .callsign{color:var(--sel);font-size:40px;font-weight:600;letter-spacing:.03em;}
+  .cs .type{color:#A8B4BE;font-size:23px;}
+  .subrow{margin-top:8px;display:flex;gap:8px;align-items:center;}
+  .chip{padding:4px 10px;border:1px solid var(--chip);border-radius:3px;color:var(--dim);
+        font-size:14px;letter-spacing:.08em;}
+  .chip.sq{color:#D7DEE4;}
+  .chip.sq.alert{color:#FF4545;border-color:#FF4545;}
+
+  .grid{margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:14px 14px;}
+  .cell{border:1px solid #131B22;border-radius:3px;padding:12px 14px 10px;}
+  .cell .k{color:var(--dim);font-size:13px;letter-spacing:.16em;}
+  .cell .v{margin-top:4px;color:#E8EDF1;font-size:27px;font-variant-numeric:tabular-nums;}
+  .cell .v small{color:var(--dim);font-size:15px;}
+  .cell .v .arrow{font-size:22px;}
+
+  .divider{margin:24px 0 18px;border-top:1px solid var(--chip);}
+
+  /* ===== ATC audio section ===== */
+  .atcHead{display:flex;justify-content:space-between;align-items:center;}
+  .atcHead .t{color:var(--dim);font-size:15px;letter-spacing:.16em;}
+  .onair{display:flex;align-items:center;gap:8px;color:var(--sel);font-size:14px;
+         letter-spacing:.14em;}
+  .onair .dot{width:9px;height:9px;border-radius:50%;background:var(--sel);
+              animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  @media (prefers-reduced-motion: reduce){ .onair .dot{animation:none} }
+
+  .chans{margin-top:14px;display:flex;gap:8px;}
+  .chan{flex:1;border:1px solid var(--chip);border-radius:3px;padding:9px 4px 7px;
+        text-align:center;cursor:pointer;user-select:none;position:relative;}
+  .chan .pr{display:none;position:absolute;top:2px;right:5px;font-size:11px;
+            color:var(--sel);}
+  .chans.scan .chan .pr{display:block;}
+  .atcHead #atcPower{padding:4px 10px;font-size:13px;margin-left:auto;margin-right:6px;}
+  .atcHead #scanChip{padding:4px 10px;font-size:13px;margin-right:10px;}
+  .chan .n{color:#C9D1D8;font-size:16px;letter-spacing:.1em;}
+  .chan .f{margin-top:2px;color:var(--dim);font-size:13px;font-variant-numeric:tabular-nums;}
+  .chan.on{border-color:var(--sel);}
+  .chan.on .n{color:var(--sel);}
+
+  .meterRow{margin-top:16px;display:flex;align-items:center;gap:12px;}
+  #meter{display:flex;gap:3px;align-items:flex-end;height:26px;flex:1;}
+  #meter i{width:6px;background:var(--lo);border-radius:1px;display:block;}
+  #meter i.hot{background:var(--sel);}
+  .volRow{margin-top:14px;display:flex;align-items:center;gap:12px;color:var(--dim);
+          font-size:13px;letter-spacing:.12em;}
+  input[type=range]{flex:1;appearance:none;height:3px;background:var(--chip);
+                    border-radius:2px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{appearance:none;width:15px;height:15px;
+      border-radius:50%;background:var(--sel);cursor:pointer;}
+  input[type=range]:focus-visible{outline:1px solid var(--sel);outline-offset:4px;}
+  .chan:focus-visible,.rchip:focus-visible{outline:1px solid var(--sel);outline-offset:2px;}
+
+  .metar{margin-top:16px;border:1px solid #131B22;border-radius:3px;padding:10px 12px;
+         font-size:13px;line-height:1.55;color:var(--dim);letter-spacing:.04em;}
+  .metar b{color:#D7DEE4;}
+  .metar .mline{color:#B9C2CA;}
+  .metar.taf{margin-top:10px;font-size:12px;line-height:1.45;}
+
+  .pfoot{margin-top:auto;display:flex;justify-content:space-between;align-items:baseline;
+         color:#4A545D;font-size:13px;letter-spacing:.08em;}
+  .pfoot b{color:var(--dim);font-weight:600;font-size:16px;}
+</style>
+
+<div id="stage">
+  <div id="radarWrap">
+    <canvas id="radar" width="3120" height="2160"></canvas>
+    <div class="ident"><b>KCHS</b> · CHARLESTON · ADS-B</div>
+    <span class="rchip" id="homeReset" tabindex="0"
+          style="position:absolute;left:28px;top:52px;display:none">⌂ KCHS</span>
+    <div class="ctlBox" id="ctlBox">
+      <div class="ctlTog" id="ctlTog" tabindex="0" title="Show/hide controls">
+        <span id="ctlTogIcon">▾</span> CONTROLS</div>
+      <div class="ctlBody" id="ctlBody">
+      <div class="ctlRow">
+        <span class="lbl">MAP</span>
+        <span class="rchip on" data-b="efis" tabindex="0">EFIS</span>
+        <span class="rchip" data-b="sat" tabindex="0">SAT HYB</span>
+        <span class="rchip" data-b="dark" tabindex="0">DARK</span>
+      </div>
+      <div class="ctlRow">
+        <span class="lbl">SHOW</span>
+        <span class="rchip on" data-o="asp" tabindex="0">ASP</span>
+        <span class="rchip" data-o="sua" tabindex="0">SUA</span>
+        <span class="rchip on" data-o="ils" tabindex="0">ILS</span>
+        <span class="rchip on" data-o="rnav" tabindex="0">RNAV</span>
+        <span class="rchip" data-o="wpt" tabindex="0">WPT</span>
+        <span class="rchip" data-o="nav" tabindex="0">NAV</span>
+        <span class="rchip" data-o="awy" tabindex="0">AWY</span>
+      </div>
+      <div class="ctlRow">
+        <span class="lbl">WX</span>
+        <span class="rchip on" data-o="wx" tabindex="0">DOPPLER</span>
+        <span class="rchip on" data-o="sig" tabindex="0">SIG/AIRMET</span>
+      </div>
+      <div class="ctlRow">
+        <span class="lbl">RANGE</span>
+        <span class="rchip" data-r="10" tabindex="0">10</span>
+        <span class="rchip" data-r="15" tabindex="0">15</span>
+        <span class="rchip on" data-r="25" tabindex="0">25</span>
+        <span class="rchip" data-r="50" tabindex="0">50</span>
+        <span class="lbl" style="width:auto">NM</span>
+        <span class="rchip" data-x="auto" tabindex="0">AUTO</span>
+        <span class="rchip" data-x="alt" tabindex="0">≤180</span>
+      </div>
+      <div class="ctlRow">
+        <span class="lbl">CHART</span>
+        <span class="rchip" data-mix="sec" tabindex="0">SECTIONAL</span>
+        <span class="rchip" data-mixd="sec" tabindex="0" aria-label="Sectional opacity down">–</span>
+        <span class="rchip" data-mixu="sec" tabindex="0" aria-label="Sectional opacity up">+</span>
+        <span class="lbl" style="width:auto" id="mixsecv">0%</span>
+      </div>
+      <div class="ctlRow">
+        <span class="lbl" style="visibility:hidden">CHART</span>
+        <span class="rchip" data-mix="ifr" tabindex="0">IFR LOW</span>
+        <span class="rchip" data-mixd="ifr" tabindex="0" aria-label="IFR low opacity down">–</span>
+        <span class="rchip" data-mixu="ifr" tabindex="0" aria-label="IFR low opacity up">+</span>
+        <span class="lbl" style="width:auto" id="mixifrv">0%</span>
+      </div>
+      <div class="ctlRow">
+        <span class="lbl">VIEW</span>
+        <span class="rchip on" data-view="2d" tabindex="0">2D</span>
+        <span class="rchip" data-view="3d" tabindex="0">3D</span>
+        <span class="lbl" style="width:16px"></span>
+        <span class="rchip" data-o="wave" tabindex="0" title="Animated water (EFIS)">WAVES</span>
+      </div>
+      </div>
+    </div>
+    <div class="hint">LIVE ADS-B · PERSONAL USE · NOT FOR NAVIGATION</div>
+    <div id="emerg"></div>
+  </div>
+
+  <aside id="panel">
+    <div class="phead">
+      <span class="site">FLIGHT&nbsp;RADAR&nbsp;TV</span>
+      <span class="clockBox">
+        <span class="clock" id="clock">--:--<small>Z</small></span>
+        <span class="lcl" id="lclock">--:-- LCL</span>
+      </span>
+    </div>
+    <div class="arrv" id="arrv">INBOUND · SCANNING…</div>
+
+    <div class="photo">
+      <svg width="150" height="52" viewBox="0 0 150 52" aria-hidden="true">
+        <path d="M8 34 Q40 26 74 26 L104 26 Q128 26 140 31 Q143 33 138 36 L30 40 Q14 40 8 34Z"
+              fill="none" stroke="#39424B" stroke-width="2"/>
+        <path d="M70 27 L58 8 L66 8 L84 26" fill="none" stroke="#39424B" stroke-width="2"/>
+        <path d="M126 30 L122 18 L128 18 L134 29" fill="none" stroke="#39424B" stroke-width="2"/>
+        <circle cx="46" cy="42" r="3" fill="none" stroke="#39424B" stroke-width="2"/>
+        <circle cx="100" cy="42" r="3" fill="none" stroke="#39424B" stroke-width="2"/>
+      </svg>
+      <span class="note" id="photoNote">AWAITING TRAFFIC</span>
+      <img id="photoImg" alt="" style="display:none;position:absolute;inset:0;
+           width:100%;height:100%;object-fit:cover;border-radius:3px;">
+    </div>
+    <div class="credit" id="photoCred"></div>
+
+    <div class="cs"><span class="callsign" id="pCall">—</span><span class="type" id="pType"></span></div>
+    <div class="subrow">
+      <span class="chip sq" id="pSquawk">SQK ----</span>
+      <span class="chip" id="pHex">HEX ------</span>
+    </div>
+
+    <div class="grid">
+      <div class="cell"><div class="k">ALT</div><div class="v" id="pAlt">—</div></div>
+      <div class="cell"><div class="k">SPEED</div><div class="v" id="pSpd">—</div></div>
+      <div class="cell"><div class="k">HDG</div><div class="v" id="pHdg">—</div></div>
+      <div class="cell"><div class="k">DIST</div><div class="v" id="pDist">—</div></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="atcHead">
+      <span class="t">LIVE&nbsp;ATC</span>
+      <span class="rchip on" id="atcPower" tabindex="0" title="ATC audio on/off">ATC</span>
+      <span class="rchip" id="scanChip" tabindex="0"
+            title="Monitor all channels; the highest-priority one with someone talking plays">SCAN</span>
+      <span class="onair" id="onair"><span class="dot"></span><span id="onairTxt">TAP A CHANNEL</span></span>
+    </div>
+    <div class="chans" id="chans"><!-- channel chips built from CONFIG.atcChannels --></div>
+    <div class="meterRow"><div id="meter"></div></div>
+    <div class="volRow">VOL <input id="vol" type="range" min="0" max="100" value="70" aria-label="ATC volume"></div>
+
+    <div class="metar">
+      <div class="mhead" id="wxh">METAR</div>
+      <div class="mline" id="wx1">awaiting data…</div>
+      <div class="mline" id="wx2"></div>
+    </div>
+    <div class="metar taf">
+      <div class="mhead" id="tafh">TAF</div>
+      <div class="mline" id="tafBody" style="white-space:pre-wrap">awaiting data…</div>
+    </div>
+
+    <div class="pfoot">
+      <span><b id="pCount">0</b>&nbsp;AIRCRAFT</span>
+      <span id="pAge">CONNECTING…</span>
+    </div>
+  </aside>
+</div>
+
+<script src="config.js"></script>
+<script src="mapdata/map_data.js"></script>
+<script src="mapdata/charts_data.js"></script>
+<script src="mapdata/nav_data.js"></script>
+<script>
+window.onerror=(m,s,l,c)=>{
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;top:10px;left:10px;z-index:99;background:#300;color:#fff;'+
+    'font:16px monospace;padding:12px;max-width:900px;white-space:pre-wrap';
+  d.textContent='ERR '+m+' @'+l+':'+c;
+  document.body.appendChild(d);
+};
+(()=>{
+"use strict";
+/* ================= geometry ================= */
+const HOME = {lat:CONFIG.center.lat, lon:CONFIG.center.lon,
+              id:CONFIG.center.id, name:(CONFIG.center.name||'').toUpperCase()};
+const CTR = {lat:HOME.lat, lon:HOME.lon};              // radar center (movable)
+const CHART_CTR={lat:HOME.lat, lon:HOME.lon};          // charts were baked around here
+const CW=1560, CH=1080;                                 // radar CSS size
+const cvs=document.getElementById('radar'), ctx=cvs.getContext('2d');
+ctx.scale(2,2);                                         // 2× internal resolution
+let rangeNm=25, pxPerNm=(CH/2-40)/25;
+let COSLAT=Math.cos(CTR.lat*Math.PI/180);
+function setRange(nm){ rangeNm=nm; pxPerNm=(CH/2-40)/nm; buildMap(); }
+// lat/lon → map px (north up); VH switches between the normal and the
+// extended-height map used as the 3D ground plane
+let VH=CH;
+function prj(lat,lon){
+  return { x: CW/2 + (lon-CTR.lon)*COSLAT*60*pxPerNm,
+           y: VH/2 - (lat-CTR.lat)*60*pxPerNm };
+}
+
+/* ============ Charleston video map (real OSM coastline + NED terrain, baked in) ============ */
+// Airports/runways/waypoints/navaids/airways/approaches: FAA CIFP cycle 2606 (NAV data script)
+
+// airspace: real Class B/C/D polygons (with floor/ceiling) from FAA data, baked
+// into nav_data by setup_region.py. Rendered as outlines (2D) / volumes (3D).
+const ASP = (typeof NAV!=='undefined' && NAV.airspace) ? NAV.airspace : [];
+const ASPCOL={B:'92,156,226',C:'92,156,226',D:'92,156,226'};   // blue family (EFIS)
+
+// weather / selected-field state (declared early — used by the #home init hook)
+let metars={}, curApt=HOME.id, atisTxt=null, rwInUse='', curComm='', curName='';
+// layout (EFIS / SAT hybrid / DARK) + independent chart mix sliders over it
+let base='efis', view3d=false;
+let altFilter=false, autoRange=false;
+const mix={sec:0,ifr:0};                      // TV default: clean EFIS, no chart wash
+const ovl={asp:true,sua:false,ils:true,rnav:true,wpt:false,nav:false,awy:false,
+           wx:true,sig:true,wave:false};
+const VEIL={sec:.32,ifr:.3,sat:.46,dark:.22};
+const RINGCOL={efis:['#1C232B','#4A545D'],sec:['rgba(45,45,58,.6)','rgba(35,35,46,.9)'],
+               ifr:['rgba(45,45,58,.6)','rgba(35,35,46,.9)'],
+               sat:['rgba(255,255,255,.3)','rgba(255,255,255,.55)'],
+               dark:['#2A333C','#5A646D']};
+const CREDIT={sec:'CHART: FAA VFR SECTIONAL',ifr:'CHART: FAA IFR LOW',
+              sat:'IMAGERY © ESRI MAXAR',dark:'BASEMAP © CARTO · © OSM'};
+if(CHARTS)for(const b in CHARTS)for(const v in CHARTS[b]){
+  const L=CHARTS[b][v]; L.el=new Image();
+  L.el.onload=()=>{ if(base===b||(b==='dark'&&base==='sat')||mix[b]>0) buildMap(); };
+  L.el.src=L.img;
+}
+
+const LAND='#1A2312', WATER='#071626', MAPLINE='#56616E';
+// terrain elevation ramp [m, r, g, b] — olive family, brighter = higher ground
+const RAMP=[[0,20,27,16],[1,22,30,17],[6,26,35,18],[15,32,42,21],
+            [30,38,49,24],[60,44,56,28],[100,50,63,31]];
+function rampRGB(e){
+  for(let i=0;i<RAMP.length-1;i++){
+    const[e0,r0,g0,b0]=RAMP[i], [e1,r1,g1,b1]=RAMP[i+1];
+    if(e<=e1){const t=Math.max(0,Math.min(1,(e-e0)/((e1-e0)||1)));
+      return [r0+(r1-r0)*t, g0+(g1-g0)*t, b0+(b1-b0)*t];}
+  }
+  const L=RAMP[RAMP.length-1]; return [L[1],L[2],L[3]];
+}
+// terrain underlay: tiny canvas from the elevation grid, upscaled with smoothing
+const terrCvs=document.createElement('canvas');
+function buildTerrain(){
+  const g=MAP.elev, rows=g.rows, cols=g.cols;
+  terrCvs.width=cols; terrCvs.height=rows;
+  const tc=terrCvs.getContext('2d'), im=tc.createImageData(cols,rows);
+  for(let r=0;r<rows;r++)for(let cc=0;cc<cols;cc++){
+    const [R,G,B]=rampRGB(g.m[r*cols+cc]);
+    const i=(((rows-1-r)*cols)+cc)*4;         // grid row 0 = south → bottom of image
+    im.data[i]=R; im.data[i+1]=G; im.data[i+2]=B;
+    const edge=Math.min(r,rows-1-r,cc,cols-1-cc);   // fade at data edge
+    im.data[i+3]=Math.round(255*Math.min(1,.2*edge));
+  }
+  tc.putImageData(im,0,0);
+}
+// static map layer — rebuilt only when range changes
+const mapCvs=document.createElement('canvas');
+mapCvs.width=3120; mapCvs.height=2160;
+const mctx=mapCvs.getContext('2d');
+
+function path(c,pts){
+  c.beginPath();
+  for(let i=0;i<pts.length;i++){const q=prj(pts[i][0],pts[i][1]);
+    i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y);}
+}
+function extendPt(pts,end){   // continue shoreline past the data edge along its bearing
+  const k=end?pts.length-1:0, j=end?Math.max(0,k-6):Math.min(pts.length-1,6);
+  const dy=pts[k][0]-pts[j][0], dx=pts[k][1]-pts[j][1], m=Math.hypot(dy,dx)||1;
+  return [pts[k][0]+dy/m*4, pts[k][1]+dx/m*4];
+}
+function nmVec(h){ const r=h*Math.PI/180; return [Math.cos(r)/60, Math.sin(r)/(60*COSLAT)]; }
+
+function buildMap(){
+  renderMap(mctx, CH);
+  if(view3d){ renderMap(m3x, CH3); buildGround3(); }
+  VH=CH;
+  if(ovl.wave) buildWaterMask();
+}
+function renderMap(c, vh){
+  VH=vh;
+  const fam=getComputedStyle(document.body).fontFamily;
+  c.setTransform(2,0,0,2,0,0);
+  c.clearRect(0,0,CW,VH);
+  { // EFIS vector base is always drawn; a chosen chart layers over it below
+
+    c.fillStyle=LAND; c.fillRect(0,0,CW,VH);
+    // terrain shading over the surveyed area
+    const tl=prj(MAP.bbox[2],MAP.bbox[1]), br=prj(MAP.bbox[0],MAP.bbox[3]);
+    c.imageSmoothingEnabled=true;
+    c.drawImage(terrCvs, tl.x, tl.y, br.x-tl.x, br.y-tl.y);
+    // ocean: real shoreline, extended offshore past the data edge
+    const coast=MAP.coasts.reduce((a,b)=>b.length>a.length?b:a, MAP.coasts[0]);
+    const a=extendPt(coast,false), b=extendPt(coast,true), far=[CTR.lat-5,CTR.lon+6];
+    c.fillStyle=WATER; c.beginPath();
+    let q=prj(a[0],a[1]); c.moveTo(q.x,q.y);
+    for(const p of coast){ q=prj(p[0],p[1]); c.lineTo(q.x,q.y); }
+    for(const p of [b,far]){ q=prj(p[0],p[1]); c.lineTo(q.x,q.y); }
+    c.closePath(); c.fill();
+    // detailed water polygons (fills tidal estuaries / wide rivers, not just open sea)
+    if(MAP.water) for(const poly of MAP.water){ path(c,poly); c.closePath(); c.fill(); }
+    // islands (marsh-level land), lakes, rivers
+    for(const poly of MAP.islands){ path(c,poly); c.closePath();
+      c.fillStyle='#182013'; c.fill(); }
+    for(const poly of MAP.lakes){ path(c,poly); c.closePath();
+      c.fillStyle=WATER; c.fill(); }
+    c.strokeStyle=WATER; c.lineCap='round'; c.lineJoin='round';
+    c.lineWidth=Math.max(1,.06*pxPerNm);         // thin: major named rivers only
+    for(const poly of MAP.rivers){ path(c,poly); c.stroke(); }
+    // shoreline video-map lines
+    c.strokeStyle=MAPLINE; c.lineWidth=1.3; c.globalAlpha=.9;
+    for(const poly of MAP.coasts){ path(c,poly); c.stroke(); }
+    for(const poly of MAP.islands){ path(c,poly); c.closePath(); c.stroke(); }
+    for(const poly of MAP.lakes){ path(c,poly); c.closePath(); c.stroke(); }
+    c.globalAlpha=1;
+  }
+  // layout raster: SAT HYB = imagery + dark-map labels; DARK = dark map
+  if(base!=='efis' && CHARTS){
+    if(base==='sat'){
+      drawChart(c,'sat',1);
+      drawChart(c,'dark',.45);               // street/city labels over the imagery
+      c.fillStyle='rgba(0,0,0,.28)'; c.fillRect(0,0,CW,VH);
+    }else{
+      drawChart(c,'dark',1);
+      c.fillStyle='rgba(0,0,0,'+VEIL.dark+')'; c.fillRect(0,0,CW,VH);
+    }
+  }
+  // chart mixes over any layout (each slider independent)
+  if(CHARTS){
+    if(mix.sec>0) drawChart(c,'sec',mix.sec/100);
+    if(mix.ifr>0) drawChart(c,'ifr',mix.ifr/100);
+    const dim=Math.min(.5, VEIL.sec*mix.sec/100 + VEIL.ifr*mix.ifr/100);
+    if(dim>0){ c.fillStyle='rgba(0,0,0,'+dim.toFixed(3)+')'; c.fillRect(0,0,CW,VH); }
+  }
+  if(ovl.wx) drawWeather(c,fam);
+  if(ovl.sig) drawSigmets(c,fam);
+  if(ovl.awy) drawAirways(c,fam);
+  if(ovl.sua) drawSUA(c,fam);
+  if(ovl.asp) drawAirspace(c,fam);
+  if(ovl.wpt) drawWaypoints(c,fam);
+  if(ovl.ils||ovl.rnav) drawApproaches(c,fam);
+  if(ovl.nav) drawNavaids(c,fam);
+  drawAirports(c,fam);
+  drawRings(c,fam);
+  const cr=[];
+  if(base==='sat') cr.push('IMAGERY © ESRI MAXAR','© CARTO · OSM');
+  if(base==='dark') cr.push('© CARTO · OSM');
+  if(mix.sec>0) cr.push('FAA VFR SECTIONAL');
+  if(mix.ifr>0) cr.push('FAA IFR LOW');
+  if(cr.length && CHARTS)
+    txt(c, 'CHART: '+cr.join(' · '), CW-14, VH-12, '11px '+fam, '#5A646D', 'right');
+}
+
+/* ===== 3D isometric view (Tacview-style parallel projection) =====
+   The 2D map layer becomes a uniformly tilted ground plane (no perspective
+   distortion); aircraft float above it at altitude with poles and 3D trails. */
+const ISO={ky:.30, fpx:.009, cap:40000};     // low camera angle (~17°), px per ft
+const CH3=Math.round(CH/ISO.ky);             // extended map height → tilted, it
+const map3=document.createElement('canvas'); //   fills the whole screen (no bands)
+map3.width=3120; map3.height=CH3*2;
+const m3x=map3.getContext('2d');
+function isoP(mx,my,alt){                    // extended-map px → screen
+  return {x:mx, y:my*ISO.ky - Math.min(alt||0,ISO.cap)*ISO.fpx};
+}
+const g3=document.createElement('canvas');
+g3.width=3120; g3.height=2160;
+const g3x=g3.getContext('2d');
+function buildGround3(){
+  g3x.setTransform(1,0,0,1,0,0);
+  g3x.fillStyle='#000'; g3x.fillRect(0,0,3120,2160);
+  g3x.imageSmoothingEnabled=true;
+  g3x.setTransform(2,0,0,2*ISO.ky,0,0);
+  g3x.drawImage(map3,0,0,CW,CH3);
+  g3x.setTransform(2,0,0,2,0,0);
+  // atmospheric haze: fade the far (top) and near (bottom) edges to black so the
+  // map's data boundary never shows as a hard band of flat terrain
+  const gr=g3x.createLinearGradient(0,0,0,CH);
+  gr.addColorStop(0,'rgba(2,6,10,1)'); gr.addColorStop(.16,'rgba(2,6,10,0)');
+  gr.addColorStop(.95,'rgba(2,6,10,0)'); gr.addColorStop(1,'rgba(2,6,10,.9)');
+  g3x.fillStyle=gr; g3x.fillRect(0,0,CW,CH);
+}
+
+// 3D special-use airspace volumes (floor + ceiling polygons, corner walls)
+function drawSUA3(){
+  VH=CH3;
+  for(const s of NAV.sua){
+    const col=SUACOL[s.t];
+    const P=s.pts.map(p=>prj(p[0],p[1]));
+    const yb=-s.fl*ISO.fpx, yt=-Math.min(s.ce,ISO.cap)*ISO.fpx;
+    ctx.strokeStyle='rgba('+col+',.45)'; ctx.lineWidth=1.2; ctx.setLineDash([8,4]);
+    for(const yo of [yb,yt]){
+      ctx.beginPath();
+      P.forEach((q,i)=>{const y=q.y*ISO.ky+yo; i?ctx.lineTo(q.x,y):ctx.moveTo(q.x,y);});
+      ctx.closePath(); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.globalAlpha=.35;
+    const stepN=Math.max(1,Math.floor(P.length/8));
+    for(let i=0;i<P.length;i+=stepN){
+      const q=P[i];
+      ctx.beginPath(); ctx.moveTo(q.x,q.y*ISO.ky+yb); ctx.lineTo(q.x,q.y*ISO.ky+yt);
+      ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+    ctx.fillStyle='rgba('+col+',.05)';
+    ctx.beginPath();
+    P.forEach((q,i)=>{const y=q.y*ISO.ky+yt; i?ctx.lineTo(q.x,y):ctx.moveTo(q.x,y);});
+    ctx.closePath(); ctx.fill();
+  }
+  VH=CH;
+}
+
+// 3D approach glidepaths: final segment rising at the real GS angle through fixes
+function drawApproaches3(fam){
+  VH=CH3;
+  for(const A of NAV.appr){
+    if(A.ils?!ovl.ils:!ovl.rnav) continue;
+    const F=A.final; if(!F||F.length<2) continue;
+    const base=A.ils?GMN.ils:GMN.rnav;    // Garmin: ILS green, RNAV violet
+    const lbl='rgb('+base+')';
+    const gs=Math.tan(((A.ils&&A.ils.gs)||3.0)*Math.PI/180);
+    const map=F[F.length-1];
+    const P=[];
+    for(let i=F.length-1;i>=0;i--){
+      const x=F[i], q=prj(x.lat,x.lon);
+      const dnm=Math.hypot((x.lat-map.lat)*60,(x.lon-map.lon)*60*COSLAT);
+      P.push({x:x, q:q, s:isoP(q.x,q.y,gs*dnm*6076), g:isoP(q.x,q.y,0)});
+    }
+    ctx.strokeStyle='rgba('+base+',.8)'; ctx.lineWidth=1.7; ctx.lineJoin='round';
+    ctx.beginPath();
+    P.forEach((p,i)=>i?ctx.lineTo(p.s.x,p.s.y):ctx.moveTo(p.s.x,p.s.y));
+    ctx.stroke();
+    for(const p of P){
+      if(p.x.id.startsWith('RW')) continue;
+      ctx.strokeStyle='rgba('+base+',.3)'; ctx.lineWidth=1; ctx.setLineDash([2,3]);
+      ctx.beginPath(); ctx.moveTo(p.g.x,p.g.y); ctx.lineTo(p.s.x,p.s.y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='rgba('+base+',.95)'; ctx.strokeStyle='rgba('+base+',.95)';
+      ctx.lineWidth=1.4;
+      if(p.x.role==='faf'){
+        maltese(ctx,p.s.x,p.s.y,6,0);           // FAF: picture only, no wording
+      }else{
+        fixTri(ctx,p.s.x,p.s.y,5,0);
+        // billboarded (always upright) ident, readable straight-on in the 3D tilt
+        txt(ctx,p.x.id,p.s.x+9,p.s.y-8,'600 12px '+fam,lbl);
+      }
+    }
+  }
+  VH=CH;
+}
+
+// billboarded (always-upright) labels for the 3D view — the baked map labels
+// would be unreadably squashed by the tilt, so they are skipped there instead
+function drawLabels3(fam){
+  VH=CH3;
+  for(const ap of NAV.apts){
+    const q0=prj(ap.lat,ap.lon), s=isoP(q0.x,q0.y,0);
+    if(s.x<-40||s.x>CW+40||s.y<-30||s.y>CH+30) continue;
+    txt(ctx, ap.id.trim(), s.x+10, s.y-7, '600 13px '+fam, '#9AA6B2');
+  }
+  if(ovl.asp){ const seen=new Set();                 // one label per airspace name
+    for(const A of ASP){
+      if(seen.has(A.name)) continue; seen.add(A.name);
+      let cx=0,cy=0; for(const p of A.pts){const q=prj(p[0],p[1]); cx+=q.x; cy+=q.y;}
+      const s=isoP(cx/A.pts.length, cy/A.pts.length, (A.ce||4000));
+      txt(ctx, A.name, s.x, s.y-10, '11px '+fam, 'rgba(111,174,224,.95)','center');
+    }
+  }
+  if(ovl.sua) for(const s0 of NAV.sua){
+    let cx=0,cy=0;
+    for(const p of s0.pts){const q=prj(p[0],p[1]); cx+=q.x; cy+=q.y;}
+    cx/=s0.pts.length; cy/=s0.pts.length;
+    const s=isoP(cx,cy,0);
+    if(s.x<-60||s.x>CW+60||s.y<-30||s.y>CH+30) continue;
+    const col=SUACOL[s0.t];
+    txt(ctx, s0.name.toUpperCase(), s.x, s.y, '11px '+fam, 'rgba('+col+',.9)','center');
+    txt(ctx, (s0.fl/100|0)+'-'+(s0.ce/100|0), s.x, s.y+12, '10px '+fam, 'rgba('+col+',.7)','center');
+  }
+  if(ovl.sig) for(const s0 of SIGS){
+    let cx=0,cy=0;
+    for(const p of s0.pts){const q=prj(p[0],p[1]); cx+=q.x; cy+=q.y;}
+    const s=isoP(cx/s0.pts.length, cy/s0.pts.length, 0);
+    if(s.x<-80||s.x>CW+80||s.y<-30||s.y>CH+30) continue;
+    txt(ctx, s0.t, s.x, s.y, '600 12px '+fam, 'rgba('+s0.col+',.95)','center');
+  }
+  VH=CH;
+}
+
+// vertical altitude scale for the 3D view
+function drawAltScale(fam){
+  const x=CW-52, y0=CH-70, step=10000*ISO.fpx;
+  ctx.strokeStyle='#5A646D'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y0-4*step); ctx.stroke();
+  for(let k=0;k<=4;k++){
+    const y=y0-k*step;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+8,y); ctx.stroke();
+    txt(ctx,''+k*10,x+12,y+4,'12px '+fam,'#7C8790');
+  }
+  txt(ctx,'ALT',x-4,y0-4*step-24,'11px '+fam,'#5A646D');
+  txt(ctx,'×1000 FT',x-24,y0-4*step-10,'10px '+fam,'#5A646D');
+}
+
+// 3D airspace volumes: floor + ceiling polygon rings joined by vertical walls
+function drawAirspace3(){
+  VH=CH3;
+  for(const A of ASP){
+    const col=ASPCOL[A.cls]||'92,156,226';
+    const P=A.pts.map(p=>prj(p[0],p[1]));
+    const yb=-(A.fl||0)*ISO.fpx, yt=-Math.min(A.ce||10000,ISO.cap)*ISO.fpx;
+    ctx.strokeStyle='rgba('+col+','+(A.cls==='D'?'.35':'.55')+')'; ctx.lineWidth=1.3;
+    if(A.cls==='D') ctx.setLineDash([6,5]);
+    for(const yo of [yb,yt]){
+      ctx.beginPath();
+      P.forEach((q,i)=>{const y=q.y*ISO.ky+yo; i?ctx.lineTo(q.x,y):ctx.moveTo(q.x,y);});
+      ctx.closePath(); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.globalAlpha=.3;
+    const step=Math.max(1,Math.floor(P.length/10));
+    for(let i=0;i<P.length;i+=step){ const q=P[i];
+      ctx.beginPath(); ctx.moveTo(q.x,q.y*ISO.ky+yb); ctx.lineTo(q.x,q.y*ISO.ky+yt); ctx.stroke(); }
+    ctx.globalAlpha=1;
+    ctx.fillStyle='rgba('+col+',.05)';
+    ctx.beginPath();
+    P.forEach((q,i)=>{const y=q.y*ISO.ky+yt; i?ctx.lineTo(q.x,y):ctx.moveTo(q.x,y);});
+    ctx.closePath(); ctx.fill();
+  }
+  VH=CH;
+}
+
+function drawAC3(){
+  const fam=getComputedStyle(document.body).fontFamily;
+  VH=CH3;
+  for(const a of AC){
+    if(altFilter&&!a.gnd&&a.alt>18000) continue;
+    const p=prj(a.lat,a.lon);
+    const g=isoP(p.x,p.y,0), q=isoP(p.x,p.y,a.alt);
+    a.sx=q.x; a.sy=q.y;                        // click target
+    const sel=(a===selected);
+    const col=sel?'#FFB02E':acColor(a);
+    // 3D flight trail (each point at its recorded altitude)
+    ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.lineJoin='round';
+    for(let i=1;i<a.trail.length;i++){
+      const t0=a.trail[i-1], t1=a.trail[i];
+      const q0=prj(t0.lat,t0.lon), q1=prj(t1.lat,t1.lon);
+      const i0=isoP(q0.x,q0.y,t0.alt), i1=isoP(q1.x,q1.y,t1.alt);
+      ctx.globalAlpha=(i/a.trail.length)*.5;
+      ctx.beginPath(); ctx.moveTo(i0.x,i0.y); ctx.lineTo(i1.x,i1.y); ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+    // altitude pole + ground marker
+    ctx.strokeStyle=col; ctx.globalAlpha=.35; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+    ctx.beginPath(); ctx.moveTo(g.x,g.y); ctx.lineTo(q.x,q.y); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=.7;
+    ctx.beginPath(); ctx.ellipse(g.x,g.y,4,4*ISO.ky,0,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=1;
+    // target square + data block (constant size — parallel projection)
+    ctx.fillStyle=col; ctx.fillRect(q.x-5.5,q.y-5.5,11,11);
+    if(sel){ ctx.strokeStyle=col; ctx.lineWidth=1.5;
+             ctx.strokeRect(q.x-12,q.y-12,24,24); }
+    ctx.textAlign='left';
+    ctx.strokeStyle='rgba(0,0,0,.85)'; ctx.lineWidth=3; ctx.lineJoin='round';
+    ctx.font='600 17px '+fam;
+    ctx.strokeText(a.cs,q.x+14,q.y-4);
+    ctx.fillStyle=col; ctx.fillText(a.cs,q.x+14,q.y-4);
+    ctx.font='16px '+fam;
+    ctx.strokeText(fmtBlock(a),q.x+14,q.y+13);
+    ctx.globalAlpha=.9; ctx.fillText(fmtBlock(a),q.x+14,q.y+13); ctx.globalAlpha=1;
+    if(sel && a.rte){
+      ctx.font='14px '+fam;
+      ctx.strokeText(a.rte,q.x+14,q.y+29);
+      ctx.globalAlpha=.85; ctx.fillText(a.rte,q.x+14,q.y+29); ctx.globalAlpha=1;
+    }
+  }
+  VH=CH;
+}
+
+function drawChart(c,k,alpha){
+  // pick chart resolution by range; bump coarser if recentered away from the
+  // chart's bake point so the tile still covers the view; 3D always uses far
+  const dc=Math.hypot((CTR.lat-CHART_CTR.lat)*60,(CTR.lon-CHART_CTR.lon)*60*COSLAT);
+  let tier=VH>CH?'far':rangeNm<=15?'close':rangeNm<=25?'near':'far';
+  if(tier==='close'&&dc>16) tier='near';
+  if(tier==='near'&&dc>34) tier='far';
+  const L=CHARTS[k][tier]||CHARTS[k].near;
+  if(!(L.el && L.el.complete)) return;
+  const tl=prj(L.N,L.W), br=prj(L.S,L.E);
+  c.imageSmoothingEnabled=true; c.globalAlpha=alpha;
+  c.drawImage(L.el, tl.x, tl.y, br.x-tl.x, br.y-tl.y);
+  c.globalAlpha=1;
+}
+
+// live NEXRAD composite via RainViewer tiles
+let wxTiles=[], wxTime=0;
+async function radarRefresh(){
+  try{
+    const r=await fetch('https://api.rainviewer.com/public/weather-maps.json',
+                        {signal:sig(12000)});
+    const j=await r.json();
+    const fr=j.radar&&j.radar.past&&j.radar.past[j.radar.past.length-1];
+    if(!fr) return;
+    wxTime=fr.time;
+    const z=7, n=2**z, S=31.4, W=-82.2, N=34.3, E=-78.2;  // z7 = RainViewer free-tier max
+    const my=la=>{const q=la*Math.PI/180;return (1-Math.asinh(Math.tan(q))/Math.PI)/2;};
+    const inv=y=>Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*180/Math.PI;
+    const tx0=Math.floor((W+180)/360*n), tx1=Math.floor((E+180)/360*n);
+    const ty0=Math.floor(my(N)*n), ty1=Math.floor(my(S)*n);
+    const tiles=[];
+    for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++){
+      const img=new Image(); img.crossOrigin='anonymous';
+      img.onload=scheduleBuild;
+      img.src=j.host+fr.path+'/512/'+z+'/'+tx+'/'+ty+'/2/1_1.png';
+      tiles.push({img, W:tx/n*360-180, E:(tx+1)/n*360-180, N:inv(ty), S:inv(ty+1)});
+    }
+    wxTiles=tiles;
+  }catch(e){}
+}
+setInterval(radarRefresh,5*60*1000); radarRefresh();
+function drawWeather(c,fam){
+  let any=false;
+  c.globalAlpha=.62; c.imageSmoothingEnabled=true;
+  for(const t of wxTiles){
+    if(!(t.img.complete&&t.img.naturalWidth)) continue;
+    const tl=prj(t.N,t.W), br=prj(t.S,t.E);
+    c.drawImage(t.img, tl.x, tl.y, br.x-tl.x, br.y-tl.y);
+    any=true;
+  }
+  c.globalAlpha=1;
+  if(VH<=CH)
+    txt(c,'WX: NEXRAD'+(any&&wxTime?' · '+Math.max(0,Math.round((Date.now()/1000-wxTime)/60))+' MIN AGO':' · LOADING'),
+        16, VH-40, '11px '+fam, '#4A545D');
+}
+
+// live SIGMET / AIRMET / convective shapes (aviationweather.gov)
+let SIGS=[];
+let bmT=null;
+function scheduleBuild(){ clearTimeout(bmT); bmT=setTimeout(buildMap,300); }
+async function sigRefresh(){
+  try{
+    const r=await fetch('/api/sig',{signal:sig(15000)});
+    const j=await r.json(), out=[];
+    for(const s of j){
+      const pts=(s.coords||[]).map(c=>[+c.lat,+c.lon]);
+      if(pts.length<3) continue;
+      const bb=CONFIG.sigmetBox;
+      if(!pts.some(p=>p[0]>bb.latMin&&p[0]<bb.latMax&&p[1]>bb.lonMin&&p[1]<bb.lonMax)) continue;
+      const hz=((s.hazard||'')+'').toUpperCase();
+      const typ=((s.airSigmetType||'')+'').toUpperCase();
+      let col='64,190,255', name=typ||'AIRMET';
+      if(typ.includes('CONV')||hz.includes('CONV')){col='255,92,60';name='CONVECTIVE SIGMET';}
+      else if(typ==='SIGMET'){col='255,176,46';}
+      else if(hz.includes('IFR')){col='155,135,255';name='AIRMET SIERRA';}
+      else if(hz.includes('TURB')){name='AIRMET TANGO';}
+      else if(hz.includes('ICE')){col='120,170,255';name='AIRMET ZULU';}
+      out.push({t:(name+(hz&&!name.includes(hz)?' · '+hz:'')), col, pts});
+    }
+    SIGS=out; scheduleBuild();
+  }catch(e){}
+}
+setInterval(sigRefresh,10*60*1000); sigRefresh();
+function drawSigmets(c,fam){
+  for(const s of SIGS){
+    c.strokeStyle='rgba('+s.col+',.85)'; c.lineWidth=2; c.setLineDash([12,6]);
+    c.beginPath();
+    s.pts.forEach((p,i)=>{const q=prj(p[0],p[1]); i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y);});
+    c.closePath(); c.stroke(); c.setLineDash([]);
+    c.fillStyle='rgba('+s.col+',.07)'; c.fill();
+    if(VH<=CH){                          // 3D view billboards these labels instead
+      let cx=0,cy=0;
+      for(const p of s.pts){const q=prj(p[0],p[1]); cx+=q.x; cy+=q.y;}
+      txt(c,s.t,cx/s.pts.length,cy/s.pts.length,'600 12px '+fam,'rgba('+s.col+',.95)','center');
+    }
+  }
+}
+
+// special-use airspace: MOA / restricted / warning / alert (FAA CIFP)
+const SUACOL={MOA:'201,120,178',ALERT:'201,120,178',
+              RESTRICTED:'110,140,220',PROHIBITED:'110,140,220',WARNING:'110,140,220'};
+function drawSUA(c,fam){
+  for(const s of NAV.sua){
+    const col=SUACOL[s.t];
+    c.strokeStyle='rgba('+col+',.55)'; c.lineWidth=1.6; c.setLineDash([9,4]);
+    c.beginPath();
+    s.pts.forEach((p,i)=>{const q=prj(p[0],p[1]); i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y);});
+    c.closePath(); c.stroke(); c.setLineDash([]);
+    c.fillStyle='rgba('+col+',.05)'; c.fill();
+    if(VH<=CH){                          // 3D view billboards these labels instead
+      let cx=0,cy=0;
+      for(const p of s.pts){const q=prj(p[0],p[1]); cx+=q.x; cy+=q.y;}
+      cx/=s.pts.length; cy/=s.pts.length;
+      if(cx>-80&&cx<CW+80&&cy>-80&&cy<VH+80){
+        txt(c,s.name.toUpperCase(),cx,cy,'11px '+fam,'rgba('+col+',.9)','center');
+        txt(c,(s.fl/100|0)+'-'+(s.ce/100|0),cx,cy+13,'10px '+fam,'rgba('+col+',.7)','center');
+      }
+    }
+  }
+}
+
+// text with dark halo (readable on any base map)
+function txt(c,str,x,y,font,fill,align){
+  c.font=font; c.textAlign=align||'left';
+  c.strokeStyle='rgba(0,0,0,.8)'; c.lineWidth=3; c.lineJoin='round';
+  c.strokeText(str,x,y);
+  c.fillStyle=fill; c.fillText(str,x,y);
+}
+
+function drawAirspace(c,fam){
+  const named=new Set();
+  for(const A of ASP){
+    const col=ASPCOL[A.cls]||'92,156,226';
+    c.strokeStyle='rgba('+col+','+(A.cls==='D'?'.6':'.82')+')';
+    c.lineWidth=A.cls==='B'?2.0:A.cls==='C'?1.8:1.4;
+    if(A.cls==='D') c.setLineDash([7,6]);
+    let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9,topx=0;
+    c.beginPath();
+    A.pts.forEach((p,i)=>{const q=prj(p[0],p[1]); i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y);
+      if(q.x<minx)minx=q.x; if(q.x>maxx)maxx=q.x; if(q.y>maxy)maxy=q.y;
+      if(q.y<miny){miny=q.y;topx=q.x;} });
+    c.closePath(); c.stroke(); c.setLineDash([]);
+    c.fillStyle='rgba('+col+',.04)'; c.fill();          // faint interior shade
+    // ceiling/floor block + one name per airspace, only on shelves big enough to read
+    if(VH<=CH && (maxx-minx)>80 && (maxy-miny)>80){
+      const cel=(A.ce/100|0)+'', flo=A.fl?(A.fl/100|0)+'':'SFC';
+      txt(c,cel,topx,miny+12,'11px '+fam,'#6FAEE0','center');
+      c.strokeStyle='rgba('+col+',.9)'; c.lineWidth=1;
+      c.beginPath(); c.moveTo(topx-11,miny+16); c.lineTo(topx+11,miny+16); c.stroke();
+      txt(c,flo,topx,miny+28,'11px '+fam,'#6FAEE0','center');
+      if(!named.has(A.name)){ named.add(A.name);
+        txt(c,A.name,(minx+maxx)/2,maxy+14,'11px '+fam,'rgba(111,174,224,.85)','center'); }
+    }
+  }
+}
+
+/* Garmin-style aeronautical colors (what GTN / G1000 pilots read instinctively):
+   GPS/RNAV course = magenta · ILS/VLOC = green · VOR & Victor airways = blue ·
+   intersections/waypoints = cyan · NDB = tan */
+// shades chosen to stay distinct from the traffic colors (which use pure green &
+// pink-magenta): ILS = pale mint green, RNAV = blue-violet
+const GMN={ ils:'150,240,175', rnav:'168,132,255', vor:'96,164,232',
+            wpt:'110,206,224', ndb:'196,158,120' };
+const FAABLUE='#6FA8DC', FAAMAG='#C77FB4';
+
+function star4(c,x,y,s){                     // FAA RNAV waypoint: 4-pointed star
+  c.beginPath();
+  for(let k=0;k<8;k++){
+    const r=k%2?s*.36:s, a=Math.PI/4*k-Math.PI/2;
+    const px=x+r*Math.cos(a), py=y+r*Math.sin(a);
+    k?c.lineTo(px,py):c.moveTo(px,py);
+  }
+  c.closePath(); c.stroke();
+}
+
+function drawAirways(c,fam){
+  for(const a of NAV.awys){
+    // Garmin: V (Victor / VOR) airways blue; T (RNAV/GPS) routes magenta
+    const col=a.id[0]==='V'?GMN.vor:GMN.rnav;
+    c.strokeStyle='rgba('+col+',.42)'; c.lineWidth=1.1;
+    c.beginPath();
+    a.pts.forEach((p,i)=>{const q=prj(p[0],p[1]); i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y);});
+    c.stroke();
+    const m=Math.floor((a.pts.length-1)/2);
+    const p1=prj(a.pts[m][0],a.pts[m][1]);
+    const p2=a.pts[m+1]?prj(a.pts[m+1][0],a.pts[m+1][1]):p1;
+    if(VH<=CH) txt(c,a.id,(p1.x+p2.x)/2,(p1.y+p2.y)/2-4,'10px '+fam,'rgba('+col+',.85)','center');
+  }
+}
+
+function drawWaypoints(c,fam){
+  const names=rangeNm<=50;
+  c.strokeStyle='rgba('+GMN.wpt+',.85)'; c.lineWidth=1.2;   // Garmin cyan intersections
+  for(const w of NAV.wpts){
+    const q=prj(w.lat,w.lon);
+    if(q.x<-20||q.x>CW+20||q.y<-20||q.y>CH+20) continue;
+    star4(c,q.x,q.y,5);
+    if(names&&VH<=CH) txt(c,w.id,q.x+8,q.y-6,'10px '+fam,'rgba('+GMN.wpt+',.85)');
+  }
+}
+
+function drawNavaids(c,fam){
+  for(const v of NAV.vors){
+    if(!v.cls || v.cls[0]!=='V') continue;   // VOR family only, not ILS localizers
+    const q=prj(v.lat,v.lon);
+    if(q.x<-30||q.x>CW+30||q.y<-30||q.y>CH+30) continue;
+    const vc='rgb('+GMN.vor+')';
+    c.strokeStyle=vc; c.lineWidth=1.4; c.beginPath();           // VOR hexagon (blue)
+    for(let k=0;k<6;k++){const a=Math.PI/3*k-Math.PI/6;
+      const x=q.x+8*Math.cos(a), y=q.y+8*Math.sin(a); k?c.lineTo(x,y):c.moveTo(x,y);}
+    c.closePath(); c.stroke();
+    c.fillStyle=vc; c.fillRect(q.x-1.5,q.y-1.5,3,3);
+    if(VH<=CH) txt(c,v.id+' '+v.f.toFixed(2),q.x+13,q.y+4,'11px '+fam,vc);
+  }
+  for(const n of NAV.ndbs){
+    const q=prj(n.lat,n.lon);
+    if(q.x<-30||q.x>CW+30||q.y<-30||q.y>CH+30) continue;
+    const nc='rgb('+GMN.ndb+')';
+    c.fillStyle=nc;                                             // NDB (tan)
+    c.beginPath(); c.arc(q.x,q.y,2.2,0,Math.PI*2); c.fill();
+    c.strokeStyle='rgba('+GMN.ndb+',.6)'; c.setLineDash([1,3]); c.lineWidth=1.2;
+    c.beginPath(); c.arc(q.x,q.y,7,0,Math.PI*2); c.stroke(); c.setLineDash([]);
+    if(VH<=CH) txt(c,n.id+' '+n.f,q.x+12,q.y+4,'11px '+fam,nc);
+  }
+}
+
+function maltese(c,x,y,s,rot){        // FAF symbol
+  c.save(); c.translate(x,y); c.rotate(rot+Math.PI/4);
+  c.beginPath();
+  for(let k=0;k<4;k++){
+    c.moveTo(0,0); c.lineTo(-s*.42,-s); c.lineTo(s*.42,-s); c.closePath();
+    c.rotate(Math.PI/2);
+  }
+  c.fill(); c.restore();
+}
+function fixTri(c,x,y,s,rot){         // RNAV / en-route fix triangle
+  c.save(); c.translate(x,y); c.rotate(rot);
+  c.beginPath(); c.moveTo(0,-s); c.lineTo(s*.87,s*.5); c.lineTo(-s*.87,s*.5);
+  c.closePath(); c.stroke(); c.restore();
+}
+
+function drawApproaches(c,fam){
+  for(const A of NAV.appr){
+    if(A.ils?!ovl.ils:!ovl.rnav) continue;   // ILS / RNAV shown independently
+    const base=A.ils?GMN.ils:GMN.rnav;    // Garmin: ILS green, RNAV violet
+    const ACOL='rgba('+base+',';
+    const lbl='rgb('+base+')';
+    const F=A.final; if(!F||F.length<2) continue;
+    const pts=F.map(x=>prj(x.lat,x.lon));
+    // feeder transitions, dim dashed
+    c.strokeStyle=ACOL+'.28)'; c.lineWidth=1.1; c.setLineDash([4,6]);
+    for(const T of A.trans){
+      if(T.length<2) continue;
+      c.beginPath();
+      T.forEach((x,i)=>{const q=prj(x.lat,x.lon); i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y);});
+      c.stroke();
+    }
+    c.setLineDash([]);
+    // ILS localizer feather from the runway out through the FAF, real beam width
+    const pm=pts[pts.length-1];
+    let dx=pts[0].x-pm.x, dy=pts[0].y-pm.y;
+    const L0=Math.hypot(dx,dy)||1; dx/=L0; dy/=L0;
+    if(A.ils){
+      // chart-style localizer feather: narrow at the runway, widening outward,
+      // V-notch at the far end, one side shaded solid
+      const len=14*pxPerNm, notch=len*.1;
+      const wl=Math.tan((A.ils.width/2)*Math.PI/180)*len;
+      const nx=-dy, ny=dx;
+      const qe={x:pm.x+dx*len, y:pm.y+dy*len};
+      const qn={x:pm.x+dx*(len-notch), y:pm.y+dy*(len-notch)};
+      c.beginPath();
+      c.moveTo(pm.x,pm.y);
+      c.lineTo(qe.x+nx*wl, qe.y+ny*wl);
+      c.lineTo(qn.x,qn.y);
+      c.lineTo(qe.x-nx*wl, qe.y-ny*wl);
+      c.closePath();
+      c.strokeStyle=ACOL+'.6)'; c.lineWidth=1.3; c.stroke();
+      c.beginPath();                                      // shaded half
+      c.moveTo(pm.x,pm.y); c.lineTo(qe.x+nx*wl, qe.y+ny*wl); c.lineTo(qn.x,qn.y);
+      c.closePath();
+      c.fillStyle=ACOL+'.28)'; c.fill();
+    }else{
+      c.strokeStyle=ACOL+'.55)'; c.lineWidth=1.5; c.setLineDash([10,8]);
+      c.beginPath();
+      pts.forEach((q,i)=>i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y));
+      c.stroke(); c.setLineDash([]);
+    }
+    // fixes: FAF maltese cross, others triangles, real idents
+    for(const x of F){
+      if(x.id.startsWith('RW')) continue;
+      const q=prj(x.lat,x.lon);
+      c.fillStyle=ACOL+'.95)'; c.strokeStyle=ACOL+'.95)'; c.lineWidth=1.4;
+      if(x.role==='faf') maltese(c,q.x,q.y,7,0); else fixTri(c,q.x,q.y,5.5,0);
+      if(VH<=CH) txt(c,x.id,q.x+9,q.y-7,'11px '+fam,lbl);
+    }
+    // title tag beyond the outermost fix (2D only — skewed on the 3D ground)
+    const qt={x:pts[0].x+dx*40, y:pts[0].y+dy*40};
+    if(VH<=CH){
+      txt(c,A.title,qt.x,qt.y-2,'600 13px '+fam,lbl,'center');
+      if(A.ils){
+        const s=`I-${A.ils.ident.replace(/^I/,'')} ${A.ils.f.toFixed(2)} · CRS ${Math.round(A.ils.crs)}°M · GS ${A.ils.gs.toFixed(1)}°`;
+        txt(c,s,qt.x,qt.y+13,'11px '+fam,'#7C8790','center');
+      }
+    }
+  }
+}
+
+function drawAirports(c,fam){
+  for(const ap of NAV.apts){
+    const q=prj(ap.lat,ap.lon);
+    if(q.x<-40||q.x>CW+40||q.y<-40||q.y>CH+40) continue;
+    const acol=(mix.sec>=55||mix.ifr>=55)?'#8B98A3':'#6E7B87';
+    c.strokeStyle=acol; c.setLineDash([]);
+    if(ap.rwys.length){
+      // runway lines inside the classic airport circle
+      let rmax=6;
+      c.lineWidth=3.4;
+      for(const rw of ap.rwys){
+        const a=prj(rw.a[0],rw.a[1]), b=prj(rw.b[0],rw.b[1]);
+        c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); c.stroke();
+        rmax=Math.max(rmax, Math.hypot(a.x-q.x,a.y-q.y), Math.hypot(b.x-q.x,b.y-q.y));
+      }
+      c.lineWidth=1.6;
+      c.beginPath(); c.arc(q.x,q.y,rmax+5,0,Math.PI*2); c.stroke();
+    }else{
+      c.lineWidth=1.8;
+      c.beginPath(); c.arc(q.x,q.y,5.5,0,Math.PI*2); c.stroke();
+      c.fillStyle=acol; c.beginPath(); c.arc(q.x,q.y,1.6,0,Math.PI*2); c.fill();
+    }
+    if(VH<=CH) txt(c, ap.id.trim(), q.x+10, q.y-9, '600 14px '+fam, '#9AA6B2');
+  }
+}
+
+/* ================= live ADS-B traffic ================= */
+// #st test hook: headless screenshots use a virtual clock that would fire the
+// fetch timeouts instantly — disable them there
+const TESTMODE=/[#&]st/.test(location.hash);
+function sig(ms){ return TESTMODE?undefined:AbortSignal.timeout(ms); }
+const AC=[];                     // live aircraft store (drawn every frame)
+const acIx={};                   // hex → aircraft object
+const csRoute={};                // callsign → route string cache
+let lastPollAt=0, pollFails=0;
+
+async function poll(){
+  const urls=[
+    '/api/adsb',                                           // local proxy (preferred)
+    `https://api.adsb.lol/v2/point/${CTR.lat}/${CTR.lon}/100`,
+    `https://opendata.adsb.fi/api/v2/lat/${CTR.lat}/lon/${CTR.lon}/dist/100`];
+  for(const u of urls){
+    try{
+      const r=await fetch(u,{signal:sig(8000)});
+      if(!r.ok) continue;
+      const j=await r.json();
+      ingest(j.ac||j.aircraft||[]);
+      lastPollAt=Date.now(); pollFails=0;
+      return;
+    }catch(e){}
+  }
+  pollFails++;
+}
+function ingest(list){
+  const now=performance.now();
+  for(const t of list){
+    if(t.lat==null||t.lon==null) continue;                 // gotcha: no position
+    const hex=(t.hex||'').trim().toUpperCase(); if(!hex) continue;
+    let a=acIx[hex];
+    if(!a){ a={hex,trail:[],trk:0}; acIx[hex]=a; AC.push(a); }
+    a.cs=(t.flight||'').trim()||hex;                       // gotcha: trailing spaces
+    a.t=(t.t||'').trim(); a.sq=t.squawk||'';
+    a.lat=t.lat; a.lon=t.lon;
+    a.gnd=(t.alt_baro==='ground');                         // gotcha: string "ground"
+    a.alt=a.gnd?0:(typeof t.alt_baro==='number'?t.alt_baro:(t.alt_geom||0));
+    a.gs=t.gs||0; a.trk=(t.track!=null?t.track:a.trk);
+    a.vr=t.baro_rate!=null?t.baro_rate:(t.geom_rate||0);
+    a.seenAt=now;
+    a.trail.push({lat:a.lat,lon:a.lon,alt:a.alt});
+    if(a.trail.length>40)a.trail.shift();
+    if(!a.rte && a.cs && /^[A-Z]{3}\d/.test(a.cs)) fetchRoute(a);
+  }
+  for(let i=AC.length-1;i>=0;i--){                          // expire stale targets
+    if(now-AC[i].seenAt>60000){
+      if(selected===AC[i]) selected=null;
+      delete acIx[AC[i].hex]; AC.splice(i,1);
+    }
+  }
+  if(!selected) pickDefault();
+  updPanel(); updArrivals(); updEmerg();
+}
+function pickDefault(){
+  let best=null,bd=1e9;
+  for(const a of AC){
+    if(a.gnd) continue;
+    const d=nmDist(a);
+    if(d<bd){bd=d;best=a;}
+  }
+  selected=best;
+  if(selected) loadPhoto(selected);
+}
+let photoHex=null;
+const photoCache={};             // hex → {src,cred} | null
+const photoByKind={};            // "airline|type" or "type" → a real photo seen this session
+const typePhotoCache={};         // ICAO type → stock illustration from Wikipedia | null
+
+// friendly names for the common GA / bizjet / heli types (better Wikipedia hits)
+const TYPE_NAMES={
+ C172:'Cessna 172',C152:'Cessna 152',C150:'Cessna 150',C182:'Cessna 182',
+ C210:'Cessna 210',C206:'Cessna 206',C208:'Cessna 208 Caravan',C177:'Cessna 177 Cardinal',
+ C310:'Cessna 310',C180:'Cessna 180',C185:'Cessna 185',C170:'Cessna 170',
+ P28A:'Piper PA-28 Cherokee',P28B:'Piper PA-28',P28R:'Piper PA-28R Arrow',
+ PA18:'Piper PA-18 Super Cub',PA24:'Piper PA-24 Comanche',PA32:'Piper PA-32',
+ PA34:'Piper PA-34 Seneca',PA44:'Piper PA-44 Seminole',PA46:'Piper PA-46 Malibu',PA28:'Piper PA-28',
+ SR20:'Cirrus SR20',SR22:'Cirrus SR22',S22T:'Cirrus SR22',
+ BE33:'Beechcraft Bonanza',BE35:'Beechcraft Bonanza',BE36:'Beechcraft Bonanza',G36:'Beechcraft Bonanza',
+ BE58:'Beechcraft Baron',BE55:'Beechcraft Baron',BE76:'Beechcraft Duchess',BE99:'Beechcraft Model 99',
+ BE20:'Beechcraft King Air 200',B350:'Beechcraft King Air 350',C90:'Beechcraft King Air C90',
+ BE9L:'Beechcraft King Air 90',B190:'Beechcraft 1900',
+ DA40:'Diamond DA40',DA42:'Diamond DA42',DA62:'Diamond DA62',DA20:'Diamond DA20',
+ M20P:'Mooney M20',M20T:'Mooney M20',M20J:'Mooney M20',
+ TBM7:'Socata TBM',TBM8:'Socata TBM',TBM9:'Daher TBM 900',PC12:'Pilatus PC-12',
+ RV6:"Van's RV-6",RV7:"Van's RV-7",RV8:"Van's RV-8",RV9:"Van's RV-9",RV10:"Van's RV-10",RV14:"Van's RV-14",
+ C25A:'Cessna CitationJet',C25B:'Cessna CitationJet',C25C:'Cessna CitationJet',C525:'Cessna CitationJet',
+ C510:'Cessna Citation Mustang',C550:'Cessna Citation II',C560:'Cessna Citation V',
+ C56X:'Cessna Citation Excel',C680:'Cessna Citation Sovereign',C68A:'Cessna Citation Latitude',
+ E55P:'Embraer Phenom 300',E50P:'Embraer Phenom 100',
+ LJ35:'Learjet 35',LJ45:'Learjet 45',LJ60:'Learjet 60',LJ75:'Learjet 75',
+ CL30:'Bombardier Challenger 300',CL35:'Bombardier Challenger 350',CL60:'Bombardier Challenger 600',
+ GLF4:'Gulfstream IV',GLF5:'Gulfstream V',GLF6:'Gulfstream G650',G280:'Gulfstream G280',
+ FA10:'Dassault Falcon 10',FA20:'Dassault Falcon 20',FA50:'Dassault Falcon 50',
+ FA7X:'Dassault Falcon 7X',F2TH:'Dassault Falcon 2000',H25B:'Hawker 800',HDJT:'HondaJet',
+ R22:'Robinson R22',R44:'Robinson R44',R66:'Robinson R66',
+ B06:'Bell 206',B407:'Bell 407',B429:'Bell 429',AS50:'Eurocopter AS350',
+ EC30:'Eurocopter EC130',EC35:'Eurocopter EC135',S76:'Sikorsky S-76' };
+
+// tidy an FAA / adsbdb maker string into a good Wikipedia search term
+function makerTerm(mfr,model){
+  let m=(mfr||'').toLowerCase()
+        .replace(/\b(corp|corporation|inc|incorporated|llc|co|ltd|the|aircraft|aviation|industries|company|aeronautics)\b/g,'')
+        .replace(/[.,]/g,'').replace(/\s+/g,' ').trim()
+        .replace(/\b\w/g,c=>c.toUpperCase());
+  return (m+' '+(model||'')).trim();
+}
+// stock photo of an aircraft TYPE for planes with no exact photo. Tries the
+// friendly type-code map, then adsbdb, then the FAA registry by N-number
+// (which covers experimentals and anything the ADS-B feed didn't tag).
+async function typePhoto(a){
+  const key=a.t||('reg:'+(a.cs||a.hex||''));   // cache by type, or by tail when untyped
+  if(!key||key==='reg:') return null;
+  if(typePhotoCache[key]) return typePhotoCache[key];   // cache successes only — retry after a failure
+  let term=a.t?TYPE_NAMES[a.t]:null;
+  if(!term){                                   // unknown code → ask adsbdb for make/model
+    try{
+      const r=await fetch('https://api.adsbdb.com/v0/aircraft/'+a.hex,{signal:sig(9000)});
+      const j=await r.json();
+      const ac=j.response&&j.response.aircraft;
+      if(ac&&ac.manufacturer) term=makerTerm(ac.manufacturer,ac.type);
+    }catch(e){}
+  }
+  if(!term && /^N\d/.test(a.cs||'')){          // still nothing → FAA registry by tail #
+    try{
+      const r=await fetch('/api/reg?n='+encodeURIComponent(a.cs.replace(/^N/,'')),{signal:sig(9000)});
+      const j=await r.json();
+      if(j&&j.model) term=makerTerm(j.mfr,j.model);
+    }catch(e){}
+  }
+  if(!term) return null;
+  try{
+    const u='https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='
+      +encodeURIComponent(term+' aircraft')+'&gsrlimit=1&prop=pageimages&piprop=thumbnail'
+      +'&pithumbsize=440&format=json&origin=*';
+    const r=await fetch(u,{signal:sig(9000)});
+    const j=await r.json();
+    const pages=j.query&&j.query.pages;
+    for(const id in pages||{}){
+      const th=pages[id].thumbnail;
+      if(th&&th.source){
+        const p={src:th.source, cred:term, type:true};
+        typePhotoCache[key]=p; return p;
+      }
+    }
+  }catch(e){}
+  return null;
+}
+// GA callsigns are N-numbers; airliners are 3-letter ICAO + number (DAL2214)
+function kindKey(a){
+  const cs=a.cs||'';
+  if(/^[A-Z]{3}\d/.test(cs)) return cs.slice(0,3)+'|'+(a.t||'');  // airline + type
+  return a.t||'';                                                  // GA: type only
+}
+async function loadPhoto(a){
+  const img=document.getElementById('photoImg');
+  const note=document.getElementById('photoNote');
+  const cred=document.getElementById('photoCred');
+  if(!a){ img.style.display='none'; note.textContent='AWAITING TRAFFIC'; return; }
+  if(a.hex===photoHex) return;
+  photoHex=a.hex;
+  const show=p=>{
+    if(photoHex!==a.hex) return;                 // stale response
+    if(p){ img.src=p.src; img.style.display='block';
+           cred.textContent=p.type?('TYPE · '+p.cred):p.similar?'SIMILAR AIRCRAFT':''; }
+    else{ img.style.display='none';
+          note.textContent=a.t?('NO PHOTO · '+a.t):'NO PHOTO ON FILE';
+          cred.textContent=''; }
+  };
+  if(a.hex in photoCache){ show(photoCache[a.hex]); return; }
+  // show a same-type/livery example immediately while the exact photo loads
+  const kk=kindKey(a);
+  if(photoByKind[kk]) show({...photoByKind[kk], similar:true});
+  else{ img.style.display='none'; note.textContent='LOADING PHOTO…'; }
+  let p=null;
+  try{
+    const r=await fetch('https://api.planespotters.net/pub/photos/hex/'+a.hex,
+                        {signal:sig(9000)});
+    const j=await r.json();
+    if(j.photos&&j.photos.length){
+      const ph=j.photos[0];
+      p={src:ph.thumbnail_large.src,
+         cred:'© '+(ph.photographer||'unknown')+' · planespotters.net'};
+    }
+  }catch(e){}
+  if(!p){                                        // GA fallback, roughly 2x coverage
+    try{
+      const r=await fetch('https://airport-data.com/api/ac_thumb.json?m='+a.hex+'&n=1',
+                          {signal:sig(9000)});
+      const j=await r.json();
+      if(j.data&&j.data.length)
+        p={src:j.data[0].image.replace('/thumbnails',''),
+           cred:'© '+(j.data[0].photographer||'unknown')+' · airport-data.com'};
+    }catch(e){}
+  }
+  if(p){ photoCache[a.hex]=p; photoByKind[kk]=p; show(p); return; }   // exact photo — cache + reuse for same type
+  if(photoByKind[kk]){                             // same-type/livery example seen earlier
+    const sp={...photoByKind[kk], similar:true}; photoCache[a.hex]=sp; show(sp); return;
+  }
+  // no exact/similar photo → stock photo of the TYPE from the internet (any aircraft,
+  // airliner or GA — e.g. a generic Cessna 172 when the specific tail has no photo)
+  const tp=await typePhoto(a);
+  if(tp){ photoCache[a.hex]=tp; if(photoHex===a.hex) show(tp); return; }
+  show(null);                                      // nothing found — leave uncached so a re-click retries
+}
+
+async function fetchRoute(a){
+  const cs=a.cs;
+  if(cs in csRoute){ a.rte=csRoute[cs]; return; }
+  csRoute[cs]=null;
+  try{
+    const r=await fetch('https://api.adsbdb.com/v0/callsign/'+cs,
+                        {signal:sig(9000)});
+    const j=await r.json();
+    const fr=j.response&&j.response.flightroute;
+    if(fr&&fr.origin&&fr.destination){
+      csRoute[cs]=fr.origin.iata_code+'–'+fr.destination.iata_code;
+      a.rte=csRoute[cs];
+      if(selected===a) updPanel();
+    }
+  }catch(e){}
+}
+setInterval(poll,5500); poll();
+
+/* ============ arrivals strip · emergency banner · auto range ============ */
+const KCHS_P={lat:CONFIG.arrivalRef.lat,lon:CONFIG.arrivalRef.lon};   // primary-field ref for arrivals strip
+function nmTo(a,p){ return Math.hypot((a.lat-p.lat)*60,(a.lon-p.lon)*60*COSLAT); }
+function inboundList(){
+  const out=[];
+  for(const a of AC){
+    if(a.gnd||a.alt>12000||a.vr>300) continue;
+    const d=nmTo(a,KCHS_P);
+    if(d>45||d<1) continue;
+    const brg=(Math.atan2((KCHS_P.lon-a.lon)*COSLAT,KCHS_P.lat-a.lat)*180/Math.PI+360)%360;
+    let dd=Math.abs(brg-a.trk); if(dd>180)dd=360-dd;
+    if(dd<60) out.push({a,d});
+  }
+  out.sort((x,y)=>x.d-y.d);
+  return out;
+}
+function updArrivals(){
+  const el=document.getElementById('arrv');
+  const ib=inboundList();
+  if(!ib.length){ el.textContent='INBOUND · NONE'; return; }
+  const {a,d}=ib[0];
+  el.innerHTML='INBOUND · <b>'+a.cs+'</b> · '+d.toFixed(1)+' NM'
+    +(rwInUse?' · '+rwInUse.split('·')[0].trim():'');
+}
+function updEmerg(){
+  const el=document.getElementById('emerg');
+  const e=AC.find(a=>a.sq==='7500'||a.sq==='7600'||a.sq==='7700');
+  if(e){ el.style.display='block';
+         el.textContent='EMERGENCY · '+e.cs+' · SQUAWK '+e.sq; }
+  else el.style.display='none';
+}
+function setRangeUI(nm){
+  document.querySelectorAll('.rchip[data-r]')
+    .forEach(x=>x.classList.toggle('on',+x.dataset.r===nm));
+  setRange(nm);
+}
+setInterval(()=>{                            // attention auto-zoom (AUTO chip)
+  if(!autoRange) return;
+  const ib=inboundList();
+  const d=ib.length?ib[0].d:99;
+  const want=d<8?10:d<14?15:25;
+  if(want!==rangeNm) setRangeUI(want);
+},6000);
+
+/* ================= drawing ================= */
+function altColor(a){
+  const s=getComputedStyle(document.documentElement);
+  return a<10000 ? s.getPropertyValue('--lo') : a<25000 ? s.getPropertyValue('--mid')
+                                              : s.getPropertyValue('--hi');
+}
+// GA (N-number) traffic in electric blue; everyone else keeps the altitude bands
+function acColor(a){
+  if(/^N\d/.test(a.cs||'')) return '#4F8DFF';
+  return altColor(a.alt).trim();
+}
+function drawRings(c,fam){
+  const light=mix.sec>=55||mix.ifr>=55;      // bright chart mixed in → darker rings
+  const [ringc,labc]=RINGCOL[light?'sec':base];
+  c.strokeStyle=ringc; c.lineWidth=1.2; c.setLineDash([2,7]);
+  const step = rangeNm<=10 ? 2 : rangeNm<=25 ? 5 : rangeNm<=50 ? 10 : 25;
+  const maxR = Math.hypot(CW,VH)/2;
+  for(let nm=step;nm*pxPerNm<=maxR;nm+=step){
+    c.beginPath(); c.arc(CW/2,VH/2,nm*pxPerNm,0,Math.PI*2); c.stroke();
+    c.fillStyle=labc; c.font='13px '+fam; c.textAlign='center';
+    c.fillText(nm+'', CW/2, VH/2-nm*pxPerNm-5);
+  }
+  c.setLineDash([]);
+  // center cross
+  c.strokeStyle='#39424B'; c.lineWidth=1.4; c.beginPath();
+  c.moveTo(CW/2-8,VH/2); c.lineTo(CW/2+8,VH/2);
+  c.moveTo(CW/2,VH/2-8); c.lineTo(CW/2,VH/2+8); c.stroke();
+}
+function fmtBlock(a){
+  if(a.gnd) return 'GND '+Math.round(a.gs);
+  const arrow = a.vr>150?'↑':a.vr<-150?'↓':' ';
+  return String(Math.round(a.alt/100)).padStart(3,'0')+arrow+Math.round(a.gs/10);
+}
+function drawAC(){
+  const fam=getComputedStyle(document.body).fontFamily;
+  for(const a of AC){
+    if(altFilter&&!a.gnd&&a.alt>18000) continue;
+    const p=prj(a.lat,a.lon);
+    a.sx=p.x; a.sy=p.y;
+    const sel=(a===selected);
+    const col= sel ? '#FFB02E' : acColor(a);
+    // comet trail
+    for(let i=0;i<a.trail.length;i++){
+      const t=prj(a.trail[i].lat,a.trail[i].lon);
+      const f=(i+1)/a.trail.length;
+      ctx.globalAlpha=f*0.34; ctx.fillStyle=col;
+      const s=1+f*1.6;
+      ctx.fillRect(t.x-s/2,t.y-s/2,s,s);
+    }
+    ctx.globalAlpha=1;
+    // velocity vector: ~60 s of flight, capped short (user dislikes long vectors)
+    const vlen=Math.min(a.gs/60*pxPerNm/60*60, 34);
+    const r=a.trk*Math.PI/180;
+    ctx.strokeStyle=col; ctx.lineWidth=1.6; ctx.beginPath();
+    ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+Math.sin(r)*vlen, p.y-Math.cos(r)*vlen); ctx.stroke();
+    // target square
+    ctx.fillStyle=col; ctx.fillRect(p.x-5.5,p.y-5.5,11,11);
+    if(sel){ ctx.strokeStyle=col; ctx.lineWidth=1.5;
+             ctx.strokeRect(p.x-12,p.y-12,24,24); }
+    // leader line + data block (NE of target)
+    const lx=p.x+14, ly=p.y-14;
+    ctx.strokeStyle=col; ctx.lineWidth=1; ctx.globalAlpha=.7; ctx.beginPath();
+    ctx.moveTo(p.x+5,p.y-5); ctx.lineTo(lx,ly); ctx.stroke(); ctx.globalAlpha=1;
+    ctx.textAlign='left';
+    ctx.strokeStyle='rgba(0,0,0,.85)'; ctx.lineWidth=3; ctx.lineJoin='round';
+    ctx.font='600 18px '+fam;
+    ctx.strokeText(a.cs, lx+3, ly-12);
+    ctx.fillStyle=col; ctx.fillText(a.cs, lx+3, ly-12);
+    ctx.font='16px '+fam;
+    ctx.strokeText(fmtBlock(a), lx+3, ly+7);
+    ctx.globalAlpha=.9; ctx.fillText(fmtBlock(a), lx+3, ly+7); ctx.globalAlpha=1;
+    if(sel && a.rte){
+      ctx.font='14px '+fam;
+      ctx.strokeText(a.rte, lx+3, ly+25);
+      ctx.globalAlpha=.85; ctx.fillText(a.rte, lx+3, ly+25); ctx.globalAlpha=1;
+    }
+  }
+}
+
+/* ================= animation ================= */
+let selected=null, lastTrail=0;
+function step(dt){
+  // dead-reckon between polls so motion is smooth (~30 fps, not 5 s jumps)
+  for(const a of AC){
+    if(a.gnd||!a.gs) continue;
+    const d=a.gs/3600*dt;                        // nm travelled
+    const r=a.trk*Math.PI/180;
+    a.lat+=Math.cos(r)*d/60; a.lon+=Math.sin(r)*d/(60*COSLAT);
+    a.alt=Math.max(0,a.alt+a.vr*dt/60);
+  }
+}
+function pushTrails(){
+  for(const a of AC){
+    a.trail.push({lat:a.lat,lon:a.lon,alt:a.alt});
+    if(a.trail.length>35)a.trail.shift();
+  }
+}
+let prev=performance.now();
+function frame(now){
+  const dt=Math.min((now-prev)/1000,.2); prev=now;
+  step(dt);
+  if(now-lastTrail>4000){ pushTrails(); lastTrail=now; }
+  ctx.clearRect(0,0,CW,CH);
+  if(view3d){
+    const fam=getComputedStyle(document.body).fontFamily;
+    ctx.drawImage(g3,0,0,CW,CH);
+    if(ovl.wave && base==='efis') drawWater3(dt);
+    if(ovl.asp) drawAirspace3();
+    drawLabels3(fam);
+    if(ovl.ils||ovl.rnav) drawApproaches3(fam);
+    drawAC3();
+    drawAltScale(fam);
+  }
+  else{
+    ctx.drawImage(mapCvs,0,0,CW,CH);
+    if(ovl.wave && base==='efis') drawWater(dt);
+    drawAC();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ===== animated water shimmer (EFIS 2D, opt-in via WAVES) =====
+   A one-time water mask is built per range; each frame a few slow diagonal
+   shimmer bands are drawn and clipped to the water areas. */
+const waterCvs=document.createElement('canvas'); waterCvs.width=3120; waterCvs.height=2160;
+const wmx=waterCvs.getContext('2d');
+const waveCvs=document.createElement('canvas'); waveCvs.width=3120; waveCvs.height=2160;
+const wvx=waveCvs.getContext('2d');
+// second mask for the 3D view: the same ocean shape, squashed onto the tilted ground
+const water3Cvs=document.createElement('canvas'); water3Cvs.width=3120; water3Cvs.height=2160;
+const wm3=water3Cvs.getContext('2d');
+let waterMaskReady=false, water3Ready=false, waveT=0;
+// paint the water shape (white) into a mask context, using the same projection and
+// vertical squash as the target view (2D: ky=1; 3D ground plane: ky=ISO.ky)
+function paintWaterMask(cx,vh,ky){
+  cx.setTransform(2,0,0,2*ky,0,0); cx.clearRect(0,0,CW,vh);
+  cx.globalCompositeOperation='source-over'; cx.fillStyle='#fff';
+  VH=vh;
+  const coast=MAP.coasts.reduce((a,b)=>b.length>a.length?b:a, MAP.coasts[0]);
+  const a=extendPt(coast,false), b=extendPt(coast,true), far=[CTR.lat-5,CTR.lon+6];
+  cx.beginPath();
+  let q=prj(a[0],a[1]); cx.moveTo(q.x,q.y);
+  for(const p of coast){ q=prj(p[0],p[1]); cx.lineTo(q.x,q.y); }
+  for(const p of [b,far]){ q=prj(p[0],p[1]); cx.lineTo(q.x,q.y); }
+  cx.closePath(); cx.fill();
+  if(MAP.water) for(const poly of MAP.water){ path(cx,poly); cx.closePath(); cx.fill(); }
+  for(const poly of MAP.lakes){ path(cx,poly); cx.closePath(); cx.fill(); }
+  // rivers are intentionally excluded — no wave sparkle on narrow inland water
+  cx.globalCompositeOperation='destination-out';        // cut islands (land) back out
+  for(const poly of MAP.islands){ path(cx,poly); cx.closePath(); cx.fill(); }
+  cx.globalCompositeOperation='source-over';
+  VH=CH;
+}
+function buildWaterMask(){
+  waterMaskReady=false; water3Ready=false;
+  if(base!=='efis') return;
+  paintWaterMask(wmx,CH,1); waterMaskReady=true;
+  if(view3d){ paintWaterMask(wm3,CH3,ISO.ky); water3Ready=true; }
+}
+// twinkling glint grid — tiny triangles that flash light and fade, like sun
+// sparkling on water seen from above
+/* ===== DCS-style WebGL ocean =====
+   A fragment shader builds moving wave normals from fractal noise and lights
+   them with a sun → drifting sun-glitter + wave sheen. Rendered small, masked to
+   the water shape, composited additively so glitter lifts onto the water without
+   hiding rings / approaches / weather. Falls back to no effect if WebGL is
+   unavailable. Look is tunable via the WATER constants below. */
+// very-high-altitude look: tiny fine ripples, minimal sheen (dark navy ocean shows
+// through), just faint sun-glitter sprinkles. Higher scale = smaller waves.
+const OCEAN={ scale:110.0, speed:0.12, choppy:0.7, specSharp:320.0, specGain:0.28,
+              ambient:0.015, sheenGain:0.03, sheenTint:[0.08,0.16,0.34], sunTint:[0.80,0.88,1.0],
+              sun:[0.6,0.4,0.5] };
+const glCvs=document.createElement('canvas'); glCvs.width=960; glCvs.height=540;
+let gl=null, glU={}, glOK=false;
+(function initGL(){
+  try{
+    gl=glCvs.getContext('webgl',{alpha:false,antialias:false,depth:false,preserveDrawingBuffer:true})
+       || glCvs.getContext('experimental-webgl',{preserveDrawingBuffer:true});
+    if(!gl) return;
+    glCvs.addEventListener('webglcontextlost',e=>{ e.preventDefault(); glOK=false; });
+    const vs='attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
+    const fs='precision highp float;uniform float uT;uniform vec2 uRes;uniform vec2 uSun;'
+      +'uniform float uScale,uChoppy,uSpecSharp,uSpecGain,uSheenGain,uAmbient;uniform vec3 uSheen,uSunT;'
+      +'float hash(vec2 p){p=fract(p*vec2(127.1,311.7));p+=dot(p,p+34.5);return fract(p.x*p.y*95.43);}'
+      +'float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);'
+      +'float a=hash(i),b=hash(i+vec2(1.,0.)),c=hash(i+vec2(0.,1.)),d=hash(i+vec2(1.,1.));'
+      +'return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}'
+      +'float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vn(p);p=p*1.9+vec2(1.7,9.2);a*=.5;}return v;}'
+      +'float H(vec2 p){return fbm(p+vec2(uT*0.12,uT*0.05))+0.5*fbm(p*2.1-vec2(uT*0.09,uT*0.16));}'
+      +'void main(){vec2 uv=gl_FragCoord.xy/uRes;vec2 p=uv*vec2(uRes.x/uRes.y,1.0)*uScale;'
+      +'float e=0.012;float h=H(p),hx=H(p+vec2(e,0.))-h,hy=H(p+vec2(0.,e))-h;'
+      +'vec3 n=normalize(vec3(-hx,-hy,e/uChoppy));'
+      +'vec3 sun=normalize(vec3(uSun,0.5));vec3 r=reflect(-sun,n);'
+      +'float spec=pow(max(dot(r,vec3(0.,0.,1.)),0.0),uSpecSharp);'
+      +'float sheen=pow(max(n.z,0.0),3.0);'
+      +'vec3 col=uSheen*(uAmbient+sheen*uSheenGain)+uSunT*spec*uSpecGain;'
+      +'gl_FragColor=vec4(col,1.0);}';
+    function sh(t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s);
+      if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.warn('water shader:',gl.getShaderInfoLog(s)); return null; } return s; }
+    const v=sh(gl.VERTEX_SHADER,vs), f=sh(gl.FRAGMENT_SHADER,fs); if(!v||!f) return;
+    const pr=gl.createProgram(); gl.attachShader(pr,v); gl.attachShader(pr,f); gl.linkProgram(pr);
+    if(!gl.getProgramParameter(pr,gl.LINK_STATUS)){ console.warn('water link:',gl.getProgramInfoLog(pr)); return; }
+    gl.useProgram(pr);
+    const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+    const loc=gl.getAttribLocation(pr,'a'); gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+    const U=k=>gl.getUniformLocation(pr,k); glU={uT:U('uT')};
+    gl.uniform2f(U('uRes'),glCvs.width,glCvs.height);
+    gl.uniform2f(U('uSun'),OCEAN.sun[0],OCEAN.sun[1]);
+    gl.uniform1f(U('uScale'),OCEAN.scale); gl.uniform1f(U('uChoppy'),OCEAN.choppy);
+    gl.uniform1f(U('uSpecSharp'),OCEAN.specSharp); gl.uniform1f(U('uSpecGain'),OCEAN.specGain);
+    gl.uniform1f(U('uSheenGain'),OCEAN.sheenGain); gl.uniform1f(U('uAmbient'),OCEAN.ambient);
+    gl.uniform3fv(U('uSheen'),OCEAN.sheenTint); gl.uniform3fv(U('uSunT'),OCEAN.sunTint);
+    gl.viewport(0,0,glCvs.width,glCvs.height);
+    glOK=true;
+  }catch(e){ console.warn('water GL init failed',e); glOK=false; }
+})();
+// render the animated ocean light into waveCvs (before masking), shared by 2D & 3D
+function renderOcean(){
+  wvx.setTransform(1,0,0,1,0,0); wvx.clearRect(0,0,3120,2160);
+  wvx.globalCompositeOperation='source-over';
+  if(glOK){
+    gl.uniform1f(glU.uT,waveT);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    wvx.drawImage(glCvs,0,0,3120,2160);               // upscale the ocean light
+  }else{
+    // no-WebGL fallback: soft moving light bands so the water still animates
+    for(let i=0;i<3;i++){
+      const y=(waveT*40+i*260)%2600;
+      const g=wvx.createLinearGradient(0,y-120,180,y+120);
+      g.addColorStop(0,'rgba(40,70,110,0)');
+      g.addColorStop(.5,'rgba(60,95,140,.22)');
+      g.addColorStop(1,'rgba(40,70,110,0)');
+      wvx.fillStyle=g; wvx.fillRect(0,y-120,3120,240);
+    }
+  }
+}
+// mask the ocean light to the water shape and add it onto the scene
+function compositeWater(mask){
+  wvx.globalCompositeOperation='destination-in';        // keep only over water
+  wvx.drawImage(mask,0,0);
+  ctx.save(); ctx.globalCompositeOperation='lighter';    // add glitter/sheen onto the water
+  ctx.drawImage(waveCvs,0,0,CW,CH); ctx.restore();
+}
+function drawWater(dt){
+  if(!waterMaskReady) return;
+  waveT+=dt*OCEAN.speed; renderOcean(); compositeWater(waterCvs);
+}
+function drawWater3(dt){
+  if(!water3Ready) return;
+  waveT+=dt*OCEAN.speed; renderOcean(); compositeWater(water3Cvs);
+}
+buildTerrain();
+const r0=+(location.hash.match(/r=(\d+)/)||[])[1]||25;   // #r=50 → start at 50 nm
+const b0=(location.hash.match(/b=(\w+)/)||[])[1];        // #b=sec → start on sectional
+if(b0 && CHARTS && CHARTS[b0]) base=b0;
+for(const k of ['sec','ifr']){                            // #sec=40 / #ifr=60 mixes
+  const v=+(location.hash.match(new RegExp('[#&]'+k+'=(\\d+)'))||[])[1]||0;
+  if(v){ mix[k]=Math.min(100,v);
+         document.getElementById('mix'+k+'v').textContent=mix[k]+'%';
+         const tog=document.querySelector('.rchip[data-mix="'+k+'"]');
+         if(tog) tog.classList.toggle('on',mix[k]>0); }
+}
+for(const k in ovl){                                      // #show=wpt,nav,awy test hook
+  const m=location.hash.match(/show=([\w,]+)/);
+  if(m){ ovl[k]=m[1].split(',').includes(k);
+         document.querySelectorAll('.rchip[data-o="'+k+'"]').forEach(x=>x.classList.toggle('on',ovl[k])); }
+}
+if(/v=3d/.test(location.hash)){                           // #v=3d → isometric view
+  view3d=true;                                            // setRange below builds it
+  document.querySelectorAll('.rchip[data-view]')
+    .forEach(x=>x.classList.toggle('on',x.dataset.view==='3d'));
+}
+document.querySelectorAll('.rchip[data-r]').forEach(x=>x.classList.toggle('on',+x.dataset.r===r0));
+document.querySelectorAll('.rchip[data-b]').forEach(x=>x.classList.toggle('on',x.dataset.b===base));
+const hm=(location.hash.match(/home=(\w+)/)||[])[1];      // #home=KJZI recenters on load
+if(hm){ const ap=NAV.apts.find(a=>a.id.trim()===hm); if(ap) selectAirport(ap); }
+setRange(r0);
+requestAnimationFrame(frame);
+
+/* ================= panel ================= */
+function nmDist(a){
+  const dx=(a.lon-CTR.lon)*COSLAT*60, dy=(a.lat-CTR.lat)*60;
+  return Math.hypot(dx,dy);
+}
+function updPanel(){
+  const a=selected;
+  document.getElementById('pCount').textContent=AC.length;
+  if(!a){
+    document.getElementById('pCall').textContent='—';
+    document.getElementById('pType').textContent='';
+    return;
+  }
+  document.getElementById('pCall').textContent=a.cs;
+  document.getElementById('pType').textContent=a.t+(a.rte?' · '+a.rte:'');
+  const sqEl=document.getElementById('pSquawk');
+  sqEl.textContent='SQK '+a.sq;
+  sqEl.classList.toggle('alert',['7500','7600','7700'].includes(a.sq));
+  document.getElementById('pHex').textContent='HEX '+a.hex;
+  document.getElementById('pAlt').innerHTML=
+    Math.round(a.alt).toLocaleString()+' <small>FT</small> '+
+    (a.vr>150?'<span class="arrow">↑</span>':a.vr<-150?'<span class="arrow">↓</span>':'');
+  document.getElementById('pSpd').innerHTML=Math.round(a.gs)+' <small>KT</small>';
+  document.getElementById('pHdg').innerHTML=String(Math.round(a.trk)).padStart(3,'0')+'°';
+  document.getElementById('pDist').innerHTML=nmDist(a).toFixed(1)+' <small>NM</small>';
+  document.getElementById('pCount').textContent=AC.length;
+}
+setInterval(updPanel,500); updPanel();
+
+// UTC + local clocks
+function tick(){
+  const d=new Date();
+  document.getElementById('clock').innerHTML=
+    String(d.getUTCHours()).padStart(2,'0')+':'+
+    String(d.getUTCMinutes()).padStart(2,'0')+'<small>Z</small>';
+  document.getElementById('lclock').textContent=
+    d.toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',
+                                  minute:'2-digit',timeZoneName:'short'});
+  const age=document.getElementById('pAge');
+  if(!lastPollAt) age.textContent=pollFails?'NO DATA · RETRYING':'CONNECTING…';
+  else age.textContent='DATA '+Math.max(0,Math.round((Date.now()-lastPollAt)/1000))+'s AGO';
+}
+setInterval(tick,1000); tick();
+
+/* ================= interaction ================= */
+// live METAR / TAF / D-ATIS (aviationweather.gov + datis.clowd.io)
+const RWY_MAG=CONFIG.runways||{};              // home-field runways (mag hdg) for "RWY IN USE"
+function showMetar(id, ap){
+  curApt=id;
+  curComm=ap&&ap.comm?ap.comm:'';
+  curName=ap&&ap.name?ap.name:'';
+  if(!metars[curApt]) wxRefresh();             // fetch this field if not cached
+  applyMetar();
+}
+function applyMetar(){
+  const m=metars[curApt];
+  const h=document.getElementById('wxh'), l1=document.getElementById('wx1'),
+        l2=document.getElementById('wx2');
+  const comm=curComm?'  ·  '+curComm:'';
+  if(!m){ h.textContent=curApt+(curName?' · '+curName.toUpperCase():'');
+          l1.textContent='awaiting data…'; l2.textContent=curComm||''; return; }
+  const t=(m.reportTime||'').slice(11,16).replace(':','')+'Z';
+  if(curApt===CONFIG.atisStation&&atisTxt){
+    h.innerHTML=curApt+' ATIS · <b>INFO '+atisTxt.code+'</b> · '+t;
+  }else h.innerHTML=curApt+' METAR · '+t+(comm?'<span style="color:var(--sel)">'+comm+'</span>':'');
+  l1.textContent=(m.rawOb||'').replace(/^METAR\s+\w+\s+\d+Z\s*/,'').slice(0,42);
+  l2.textContent=curApt===CONFIG.atisStation&&rwInUse?rwInUse:
+    (curComm?curComm+' · ':'')+'WIND '+(m.wdir!=null?m.wdir:'--')+'@'+(m.wspd!=null?m.wspd:'--');
+}
+function calcRunway(){
+  const m=metars[CONFIG.atisStation];
+  const rwys=Object.keys(RWY_MAG);
+  if(!m||m.wdir==null||!rwys.length){ rwInUse=''; return; }
+  let best=rwys[0], bd=999;
+  for(const rw in RWY_MAG){
+    let d=Math.abs(m.wdir-RWY_MAG[rw]); if(d>180)d=360-d;
+    if(d<bd){bd=d;best=rw;}
+  }
+  rwInUse='RWY '+best+' IN USE · WIND '+m.wdir+'@'+m.wspd+(m.wgst?'G'+m.wgst:'');
+}
+async function wxRefresh(){
+  try{
+    const r=await fetch('/api/metar',{signal:sig(12000)});
+    for(const m of await r.json()) metars[m.icaoId]=m;
+    calcRunway(); applyMetar(); updArrivals();
+  }catch(e){}
+  try{
+    const r=await fetch('/api/taf',{signal:sig(12000)});
+    const j=await r.json();
+    if(j[0]&&j[0].rawTAF)
+      document.getElementById('tafBody').textContent=
+        j[0].rawTAF.replace(/^TAF\s+/,'').replace(/\s+(FM\d+|BECMG|TEMPO)/g,'\n$1');
+  }catch(e){}
+  try{
+    const r=await fetch('/api/datis',{signal:sig(9000)});
+    const j=await r.json();
+    const d=Array.isArray(j)?j[0]:j;
+    if(d&&d.datis){
+      const cm=d.datis.match(/INFO\s+([A-Z])/i);
+      atisTxt={code:cm?cm[1]:d.code||'?'};
+      applyMetar();
+    }
+  }catch(e){}
+}
+setInterval(wxRefresh,5*60*1000); wxRefresh();
+
+// forgiving click: nearest plane within 46 px, else nearest airport (→ METAR)
+cvs.addEventListener('click',e=>{
+  const b=cvs.getBoundingClientRect();
+  const mx=(e.clientX-b.left)/b.width*CW, my=(e.clientY-b.top)/b.height*CH;
+  let best=null,bd=46;
+  for(const a of AC){
+    if(altFilter&&a.alt>18000) continue;
+    const d=Math.hypot(a.sx-mx,a.sy-my); if(d<bd){bd=d;best=a;}
+  }
+  if(best){ selected=best; updPanel(); loadPhoto(best); return; }
+  let apt=null,ad=34;
+  for(const p of NAV.apts){
+    let q;
+    if(view3d){ VH=CH3; const pp=prj(p.lat,p.lon); VH=CH; q=isoP(pp.x,pp.y,0); }
+    else q=prj(p.lat,p.lon);
+    const d=Math.hypot(q.x-mx,q.y-my);
+    if(d<ad){ad=d;apt=p;}
+  }
+  if(apt) selectAirport(apt);
+});
+
+// pick an airport as the home field: recenter (if within chart coverage),
+// show its CTAF/tower and METAR
+function setIdent(id,name){
+  document.querySelector('.ident').innerHTML=
+    '<b>'+id+'</b> · '+((name||'').toUpperCase())+' · ADS-B';
+}
+setIdent(HOME.id,HOME.name);                   // initialise header/labels from config
+document.getElementById('homeReset').textContent='⌂ '+HOME.id;
+document.getElementById('tafh').textContent=CONFIG.tafStation+' TAF';
+document.getElementById('wxh').textContent=HOME.id+' METAR';
+function selectAirport(ap){
+  const id=ap.id.trim();
+  const dChs=Math.hypot((ap.lat-CHART_CTR.lat)*60,(ap.lon-CHART_CTR.lon)*60*COSLAT);
+  if(dChs<70){                                 // recenter only within chart coverage
+    CTR.lat=ap.lat; CTR.lon=ap.lon;
+    COSLAT=Math.cos(CTR.lat*Math.PI/180);
+    setIdent(id, ap.name||''); buildMap();
+    document.getElementById('homeReset').style.display=(id===HOME.id)?'none':'inline-block';
+  }
+  showMetar(id, ap);
+}
+function resetHome(){
+  CTR.lat=HOME.lat; CTR.lon=HOME.lon; COSLAT=Math.cos(CTR.lat*Math.PI/180);
+  setIdent(HOME.id,HOME.name); buildMap(); showMetar(HOME.id,{name:CONFIG.center.name});
+  document.getElementById('homeReset').style.display='none';
+}
+// control chips: range (data-r, exclusive), base map (data-b, exclusive),
+// overlays (data-o, toggles)
+function chipKeys(el,go){
+  el.addEventListener('click',go);
+  el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();go();} });
+}
+document.querySelectorAll('.rchip[data-r]').forEach(c=>chipKeys(c,()=>{
+  document.querySelectorAll('.rchip[data-r]').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on'); setRange(+c.dataset.r);
+}));
+document.querySelectorAll('.rchip[data-b]').forEach(c=>chipKeys(c,()=>{
+  document.querySelectorAll('.rchip[data-b]').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on'); base=c.dataset.b; buildMap();
+}));
+document.querySelectorAll('.rchip[data-o]').forEach(c=>chipKeys(c,()=>{
+  ovl[c.dataset.o]=!ovl[c.dataset.o];
+  c.classList.toggle('on',ovl[c.dataset.o]); buildMap();
+}));
+// return-to-Charleston button (shown when centered elsewhere)
+document.getElementById('homeReset').addEventListener('click',resetHome);
+// hint: tapping an airport recenters on it and shows its CTAF
+// collapsible control panel
+const ctlTog=document.getElementById('ctlTog');
+const doCollapse=()=>{
+  const box=document.getElementById('ctlBox');
+  box.classList.toggle('collapsed');
+  document.getElementById('ctlTogIcon').textContent=
+    box.classList.contains('collapsed')?'▸':'▾';
+};
+ctlTog.addEventListener('click',doCollapse);
+ctlTog.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();doCollapse();} });
+document.querySelectorAll('.rchip[data-x]').forEach(c=>chipKeys(c,()=>{
+  if(c.dataset.x==='alt'){ altFilter=!altFilter; c.classList.toggle('on',altFilter); }
+  else{ autoRange=!autoRange; c.classList.toggle('on',autoRange); }
+}));
+// chart mix — sectional and IFR low each get a CHART on/off toggle plus –/+
+// buttons that step the opacity by 10% (D-pad friendly; replaces the sliders)
+const mixLast={sec:20,ifr:40};                 // level to restore when re-enabled
+function setMix(k,v){
+  v=Math.max(0,Math.min(100,Math.round(v/10)*10));
+  mix[k]=v;
+  if(v>0) mixLast[k]=v;
+  document.getElementById('mix'+k+'v').textContent=v+'%';
+  const tog=document.querySelector('.rchip[data-mix="'+k+'"]');
+  if(tog) tog.classList.toggle('on',v>0);
+  buildMap();
+}
+document.querySelectorAll('.rchip[data-mix]').forEach(c=>chipKeys(c,()=>{
+  const k=c.dataset.mix; setMix(k, mix[k]>0?0:mixLast[k]);   // toggle off / restore
+}));
+document.querySelectorAll('.rchip[data-mixd]').forEach(c=>chipKeys(c,()=>
+  setMix(c.dataset.mixd, mix[c.dataset.mixd]-10)));
+document.querySelectorAll('.rchip[data-mixu]').forEach(c=>chipKeys(c,()=>
+  setMix(c.dataset.mixu, mix[c.dataset.mixu]+10)));
+// 2D / 3D view chips
+document.querySelectorAll('.rchip[data-view]').forEach(c=>chipKeys(c,()=>{
+  document.querySelectorAll('.rchip[data-view]').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on');
+  view3d=c.dataset.view==='3d';
+  if(view3d) buildMap();                     // renders the extended 3D ground too
+}));
+/* ===== LiveATC audio panel =====
+   Manual mode: tap one channel. SCAN mode: all channels stream muted through
+   a local relay (/atc/…); a level detector opens the highest-priority channel
+   where someone is transmitting — priority 1 CHS, 2 SAV APP, 3 ZJX CTR.
+   (KCHS itself is LiveATC's combined Gnd/Twr/App scanner feed.) */
+const CHANNELS=(CONFIG.atcChannels||[])
+  .slice().sort((a,b)=>(a.priority||99)-(b.priority||99))
+  .map(c=>({mt:c.mount, label:c.label, sub:c.sub||''}));
+// build the channel chips from config (DOM order must match CHANNELS order,
+// since the click handlers below index into CHANNELS by chip position)
+document.getElementById('chans').innerHTML = CHANNELS.map((c,i)=>
+  '<div class="chan" tabindex="0"><span class="pr">'+(i+1)+'</span>'+
+  '<div class="n">'+c.label+'</div><div class="f">'+(c.sub||'')+'</div></div>').join('');
+let scanMode=false, manualCh=null, actx=null, masterGain=null, activeCh=null, atcOn=true;
+for(const ch of CHANNELS){
+  ch.el=new Audio(); ch.el.preload='none';
+  ch.hotAt=0; ch.level=0;
+}
+function setOnAir(state,txtv){
+  const el=document.getElementById('onair');
+  el.querySelector('.dot').style.background=
+    state==='on'?'#26E066':state==='err'?'#FF4545':'#FFB02E';
+  document.getElementById('onairTxt').textContent=txtv;
+}
+function ensureGraph(){
+  if(actx) return;
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  masterGain=actx.createGain();
+  masterGain.gain.value=document.getElementById('vol').value/100;
+  masterGain.connect(actx.destination);
+  for(const ch of CHANNELS){
+    const src=actx.createMediaElementSource(ch.el);
+    ch.an=actx.createAnalyser(); ch.an.fftSize=512;
+    ch.buf=new Uint8Array(ch.an.fftSize);
+    ch.gain=actx.createGain(); ch.gain.gain.value=0;
+    src.connect(ch.an); ch.an.connect(ch.gain); ch.gain.connect(masterGain);
+  }
+}
+function chPlay(ch){
+  if(!ch.el.src) ch.el.src='/atc/'+ch.mt;
+  const p=ch.el.play();
+  if(p) p.catch(()=>setOnAir('err',ch.label+' UNAVAILABLE'));
+}
+function chipRefresh(){
+  document.querySelectorAll('.chan').forEach((c,i)=>{
+    c.classList.toggle('on', scanMode ? !CHANNELS[i].el.paused : CHANNELS[i]===manualCh);
+  });
+}
+function levelOf(ch){
+  if(!ch.an||ch.el.paused) return 0;
+  ch.an.getByteTimeDomainData(ch.buf);
+  let s=0;
+  for(let i=0;i<ch.buf.length;i++){ const v=(ch.buf[i]-128)/128; s+=v*v; }
+  return Math.sqrt(s/ch.buf.length);
+}
+const SQUELCH=.022, HOLD=1800;                 // squelch + hang time (ms)
+setInterval(()=>{
+  if(!actx) return;
+  const now=performance.now();
+  for(const ch of CHANNELS){
+    ch.level=levelOf(ch);
+    if(ch.level>SQUELCH) ch.hotAt=now;
+  }
+  let want=null;
+  if(scanMode){
+    for(const ch of CHANNELS)                  // array order = priority order
+      if(!ch.el.paused && now-ch.hotAt<HOLD){ want=ch; break; }
+  }else want=manualCh;
+  activeCh=want;
+  for(const ch of CHANNELS)
+    if(ch.gain) ch.gain.gain.setTargetAtTime(ch===want?1:0, actx.currentTime, .06);
+  if(scanMode)
+    setOnAir(want?'on':'idle', want?'SCAN · '+want.label:'SCAN · MONITORING');
+},120);
+function atcWake(){                            // touching audio turns ATC back on
+  if(!atcOn){ atcOn=true; document.getElementById('atcPower').classList.add('on'); }
+}
+document.querySelectorAll('.chan').forEach((c,i)=>{
+  const ch=CHANNELS[i];
+  const go=()=>{
+    atcWake(); ensureGraph(); actx.resume();
+    if(scanMode){                              // in scan: chips arm / disarm feeds
+      if(ch.el.paused) chPlay(ch);
+      else ch.el.pause();
+    }else if(manualCh===ch){
+      manualCh=null; ch.el.pause(); setOnAir('idle','TAP A CHANNEL');
+    }else{
+      manualCh=ch;
+      for(const o of CHANNELS) if(o!==ch) o.el.pause();
+      chPlay(ch); setOnAir('on','ON AIR · '+ch.label);
+    }
+    chipRefresh();
+  };
+  c.addEventListener('click',go);
+  c.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();go();} });
+});
+document.getElementById('atcPower').addEventListener('click',()=>{
+  atcOn=!atcOn;
+  document.getElementById('atcPower').classList.toggle('on',atcOn);
+  if(!atcOn){
+    for(const ch of CHANNELS) ch.el.pause();
+    setOnAir('idle','ATC OFF');
+  }else if(scanMode){
+    ensureGraph(); actx.resume();
+    for(const ch of CHANNELS) chPlay(ch);
+    setOnAir('idle','SCAN · MONITORING');
+  }else if(manualCh){
+    ensureGraph(); actx.resume();
+    chPlay(manualCh); setOnAir('on','ON AIR · '+manualCh.label);
+  }else setOnAir('idle','TAP A CHANNEL');
+  chipRefresh();
+});
+document.getElementById('scanChip').addEventListener('click',()=>{
+  atcWake();
+  scanMode=!scanMode;
+  document.getElementById('scanChip').classList.toggle('on',scanMode);
+  document.getElementById('chans').classList.toggle('scan',scanMode);
+  ensureGraph(); actx.resume();
+  if(scanMode){
+    manualCh=null;
+    for(const ch of CHANNELS) chPlay(ch);
+    setOnAir('idle','SCAN · MONITORING');
+  }else{
+    for(const ch of CHANNELS) ch.el.pause();
+    setOnAir('idle','TAP A CHANNEL');
+  }
+  chipRefresh();
+});
+const volEl=document.getElementById('vol');
+volEl.addEventListener('input',()=>{ if(masterGain) masterGain.gain.value=volEl.value/100; });
+
+/* ================= audio meter (fake) ================= */
+const meter=document.getElementById('meter');
+const bars=[];
+for(let i=0;i<26;i++){ const b=document.createElement('i'); meter.appendChild(b); bars.push(b); }
+// level meter driven by the real audio level of whichever channel is open
+let phase=0;
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+setInterval(()=>{
+  phase++;
+  const lvl=activeCh?Math.min(1,activeCh.level*9):0;
+  for(let i=0;i<bars.length;i++){
+    const h=Math.max(2, lvl*26*(0.55+0.45*Math.sin(i/3+phase/2))*(0.7+0.3*Math.random()));
+    bars[i].style.height=h+'px';
+    bars[i].classList.toggle('hot', h>21);
+  }
+}, reduceMotion?600:120);
+
+/* ============ scale stage to window (+ TV overscan safe-area) ============ */
+const stage=document.getElementById('stage');
+// overscan: shrink the stage so it fits inside a TV that crops the HDMI edges.
+// 1.0 = fill; lower leaves a black border. Set it with config.js "overscan", or
+// one-off via a URL hash (#os=0.95 -- e.g. typed into the TV app's MENU address
+// box); the value is then remembered. No live key binding -- that would hijack
+// the remote's D-pad navigation. Precedence: URL #os= > saved > config.
+let overscan=parseFloat(localStorage.getItem('frtv_os'));
+if(!(overscan>0.7&&overscan<=1)) overscan=(+CONFIG.overscan)||1;
+{ const hm=location.hash.match(/os=([0-9.]+)/);
+  if(hm){ overscan=Math.min(1,Math.max(0.7,+hm[1])); localStorage.setItem('frtv_os',overscan.toFixed(2)); } }
+const diagOn=/(?:^#|[#&])diag/.test(location.hash);
+let diagEl=null;
+function fit(){
+  const iw=innerWidth, ih=innerHeight;
+  const s=Math.min(iw/1920, ih/1080)*overscan;
+  stage.style.transform=`translate(-50%,-50%) scale(${s})`;
+  if(diagOn){
+    if(!diagEl){ diagEl=document.createElement('div');
+      diagEl.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);'
+        +'z-index:999;background:rgba(0,0,0,.88);color:#7CFF9E;font:20px monospace;'
+        +'padding:12px 18px;border:1px solid #7CFF9E;border-radius:6px;text-align:center;';
+      document.body.appendChild(diagEl); }
+    diagEl.textContent='vp '+iw+'x'+ih+'  dpr '+devicePixelRatio
+      +'  scr '+screen.width+'x'+screen.height+'  os '+overscan+'  scale '+s.toFixed(3);
+  }
+}
+// TV WebViews report their final size late; re-fit whenever the viewport settles
+['resize','orientationchange','load','pageshow'].forEach(ev=>addEventListener(ev,fit));
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) fit(); });
+if(window.visualViewport) visualViewport.addEventListener('resize',fit);
+[0,120,400,1000,2500].forEach(t=>setTimeout(fit,t));
+fit();
+
+/* ===== on-screen Settings (opened from the TV remote MENU key) ===== */
+function setOverscan(v){
+  overscan=Math.min(1,Math.max(0.80, Math.round(v*100)/100));
+  localStorage.setItem('frtv_os', overscan.toFixed(2)); fit();
+  const el=panel&&panel.querySelector('#fitPct'); if(el) el.textContent=Math.round(overscan*100)+'%';
+}
+let settingsOpen=false, panel=null;
+function buildPanel(){
+  panel=document.createElement('div');
+  panel.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1000;'
+    +'background:rgba(6,10,14,.97);border:1px solid #4A80E8;border-radius:12px;padding:30px 40px;'
+    +'color:#dbe6f0;font-family:var(--mono);text-align:center;min-width:440px;box-shadow:0 10px 50px #000;display:none;';
+  panel.innerHTML=
+     '<div style="font-size:16px;letter-spacing:.28em;color:#8FB6C9;margin-bottom:22px;">SETTINGS</div>'
+    +'<div style="letter-spacing:.14em;font-size:18px;">SCREEN FIT</div>'
+    +'<div style="font-size:46px;font-weight:600;color:#fff;margin:6px 0;">'
+      +'<span style="color:#4A80E8;">&#9664;</span> <span id="fitPct">100%</span> <span style="color:#4A80E8;">&#9654;</span></div>'
+    +'<div style="font-size:15px;color:#7C8790;">LEFT / RIGHT on the remote to resize the picture</div>'
+    +'<div style="margin-top:22px;font-size:14px;color:#7C8790;">Server</div>'
+    +'<div style="font-size:16px;color:#B9C2CA;word-break:break-all;">'+location.origin+'</div>'
+    +'<div style="margin-top:22px;font-size:14px;letter-spacing:.1em;color:#8FB6C9;">press BACK to close</div>';
+  document.body.appendChild(panel);
+}
+window.frtvSettings=function(){                  // called by the APK MENU key
+  if(!panel) buildPanel();
+  settingsOpen=!settingsOpen;
+  panel.style.display=settingsOpen?'block':'none';
+  if(settingsOpen) setOverscan(overscan);
+};
+addEventListener('keydown',e=>{
+  if(!settingsOpen) return;                      // only capture keys while open
+  const k=e.key;
+  if(k==='ArrowLeft'||k==='ArrowDown'){ setOverscan(overscan-0.01); e.preventDefault(); }
+  else if(k==='ArrowRight'||k==='ArrowUp'){ setOverscan(overscan+0.01); e.preventDefault(); }
+  else if(k==='Enter'||k==='Escape'||k==='Backspace'||k==='GoBack'){ window.frtvSettings(); e.preventDefault(); }
+});
+
+/* ===== first-run screen-fit calibration (handles TV overscan) =====
+   Shows once per device: a dashed border on the app edge + centred prompt;
+   LEFT/RIGHT shrink/grow until the border clears the TV's cropped edges. */
+let calibrating=false, calibBox=null, calibTimer=null;
+(function(){ const st=document.createElement('style');
+  st.textContent='#stage.calib{outline:4px dashed #4A80E8;outline-offset:-4px;}';
+  document.head.appendChild(st); })();
+function calibUpd(){
+  calibBox.innerHTML=
+     '<div style="font-size:16px;letter-spacing:.24em;color:#8FB6C9;margin-bottom:16px;">FIT TO YOUR SCREEN</div>'
+    +'<div style="font-size:46px;font-weight:600;color:#fff;">◀ '+Math.round(overscan*100)+'% ▶</div>'
+    +'<div style="margin-top:16px;font-size:17px;color:#B9C2CA;line-height:1.5;">Press LEFT / RIGHT on the remote until the<br>dashed blue border is fully visible on all four edges.</div>'
+    +'<div style="margin-top:10px;font-size:14px;color:#7C8790;">It saves on its own when you stop — or press OK.</div>';
+}
+function calibShow(){
+  calibrating=true;
+  document.getElementById('stage').classList.add('calib');
+  if(!calibBox){ calibBox=document.createElement('div');
+    calibBox.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2000;'
+      +'background:rgba(6,10,14,.96);border:1px solid #4A80E8;border-radius:12px;padding:28px 42px;'
+      +'color:#dbe6f0;font-family:var(--mono);text-align:center;box-shadow:0 10px 50px #000;';
+    document.body.appendChild(calibBox); }
+  calibBox.style.display='block'; calibUpd();
+  clearTimeout(calibTimer); calibTimer=setTimeout(calibDone,12000);
+}
+function calibDone(){ calibrating=false; clearTimeout(calibTimer);
+  document.getElementById('stage').classList.remove('calib');
+  if(calibBox) calibBox.style.display='none';
+  localStorage.setItem('frtv_fit_done','1');
+}
+function calibAdjust(d){ setOverscan(overscan+d*0.01); calibUpd();
+  clearTimeout(calibTimer); calibTimer=setTimeout(calibDone,4000); }
+addEventListener('keydown',e=>{
+  if(!calibrating) return;
+  const k=e.key;
+  if(k==='ArrowLeft'||k==='ArrowDown'){ calibAdjust(-1); e.preventDefault(); }
+  else if(k==='ArrowRight'||k==='ArrowUp'){ calibAdjust(1); e.preventDefault(); }
+  else if(k==='Enter'){ calibDone(); e.preventDefault(); }
+});
+if(!localStorage.getItem('frtv_fit_done')) setTimeout(calibShow,700);
+
+/* ===== D-pad control mode for the TV remote =====
+   OK turns on a highlight ring; Up/Down move between control rows; Left/Right
+   move within a row OR adjust a value (SEC/IFR, volume, screen fit) and cycle
+   planes on the map; OK toggles the highlighted control. No Back/MENU needed;
+   the highlight fades after a few idle seconds. */
+(function(){
+  const stage=document.getElementById('stage');
+  const css=document.createElement('style');
+  css.textContent=
+     '.dpFocus{outline:3px solid #4A80E8 !important;outline-offset:3px;'
+    +'box-shadow:0 0 0 3px rgba(74,128,232,.35),0 0 16px rgba(74,128,232,.75) !important;border-radius:5px;}'
+    +'#dpHint{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:20;'
+    +'background:rgba(6,10,14,.92);border:1px solid #4A80E8;color:#dbe6f0;font:19px var(--mono);'
+    +'letter-spacing:.06em;padding:10px 22px;border-radius:22px;display:none;white-space:nowrap;pointer-events:none;}';
+  document.head.appendChild(css);
+  const hint=document.createElement('div'); hint.id='dpHint'; stage.appendChild(hint);
+  let on=false, rows=[], r=0, c=0, idle=null;
+  function build(){
+    const rr=[{type:'map'}];
+    const box=document.getElementById('ctlBox');
+    rr.push({type:'chips', els:[document.getElementById('ctlTog')]});
+    if(box && !box.classList.contains('collapsed')){
+      document.querySelectorAll('#ctlBody .ctlRow').forEach(rw=>{
+        const sl=rw.querySelector('input[type=range]');
+        if(sl) rr.push({type:'slider', input:sl, host:rw});
+        else{ const els=[...rw.querySelectorAll('.rchip')]; if(els.length) rr.push({type:'chips', els}); }
+      });
+    }
+    const atc=[document.getElementById('atcPower'),document.getElementById('scanChip')].filter(Boolean);
+    if(atc.length) rr.push({type:'chips', els:atc});
+    const chans=[...document.querySelectorAll('#chans .chan')];
+    if(chans.length) rr.push({type:'chips', els:chans});
+    const vr=document.querySelector('.volRow'); if(vr) rr.push({type:'vol', host:vr});
+    rr.push({type:'fit'});
+    return rr;
+  }
+  function clr(){ document.querySelectorAll('.dpFocus').forEach(e=>e.classList.remove('dpFocus')); }
+  function paint(){
+    clr(); const row=rows[r]; if(!row){ hint.style.display='none'; return; }
+    let h='';
+    if(row.type==='map') h='◀ ▶  prev / next plane        ▼ controls';
+    else if(row.type==='chips'){ const el=row.els[c]; if(el) el.classList.add('dpFocus'); h='◀ ▶  move        OK  select'; }
+    else if(row.type==='slider'){ row.host.classList.add('dpFocus'); h='◀ ▶  adjust  ·  '+row.input.value+'%'; }
+    else if(row.type==='vol'){ row.host.classList.add('dpFocus'); h='◀ ▶  volume  ·  '+volEl.value; }
+    else if(row.type==='fit') h='◀ ▶  screen fit  ·  '+Math.round(overscan*100)+'%';
+    hint.textContent=h; hint.style.display='block';
+  }
+  function show(v){ on=v; clearTimeout(idle);
+    if(!v){ clr(); hint.style.display='none'; return; }
+    paint(); idle=setTimeout(()=>show(false),9000); }
+  function kick(){ clearTimeout(idle); idle=setTimeout(()=>show(false),9000); }
+  function enter(){ rows=build(); if(r>=rows.length) r=0; c=0; show(true); }
+  function reclamp(){ rows=build(); if(r>=rows.length) r=rows.length-1;
+    const row=rows[r]; if(row&&row.els&&c>=row.els.length) c=row.els.length-1; }
+  function moveRow(d){ if(!rows.length) return; let n=r;
+    for(let i=0;i<rows.length;i++){ n=(n+d+rows.length)%rows.length; if(rows[n]) break; } r=n; c=0; paint(); }
+  function moveCol(d){ const row=rows[r]; if(!row) return;
+    if(row.type==='chips') c=Math.min(row.els.length-1,Math.max(0,c+d));
+    else if(row.type==='slider') adj(row.input,d*5);
+    else if(row.type==='vol') adj(volEl,d*5);
+    else if(row.type==='fit') setOverscan(overscan+d*0.01);
+    else if(row.type==='map') cycle(d);
+    paint(); }
+  function adj(input,delta){ const v=Math.min(+input.max,Math.max(+input.min,(+input.value)+delta));
+    input.value=v; input.dispatchEvent(new Event('input',{bubbles:true})); }
+  function ok(){ const row=rows[r]; if(!row) return;
+    if(row.type==='chips'){ const el=row.els[c]; if(el) el.click(); reclamp(); paint(); } }
+  function cycle(d){
+    // only step through planes whose ground-position dot is on screen (so a 10 nm
+    // range cycles just the traffic you can see, in 2D or 3D)
+    const onScreen=a=>{ if(a.lat==null||a.lon==null) return false;
+      const p=prj(a.lat,a.lon), g=view3d?isoP(p.x,p.y,0):p;
+      return g.x>=0&&g.x<=CW&&g.y>=0&&g.y<=CH; };
+    const list=AC.filter(onScreen).sort((a,b)=>nmTo(a,CTR)-nmTo(b,CTR));
+    if(!list.length) return; let i=list.indexOf(selected); if(i<0) i=(d>0?-1:0);
+    i=(i+d+list.length)%list.length; selected=list[i]; updPanel(); loadPhoto(selected); }
+  addEventListener('keydown',e=>{
+    if(settingsOpen||calibrating) return;
+    const k=e.key;
+    if(k==='Enter'){ if(!on) enter(); else ok(); e.preventDefault(); kick(); }
+    else if(k==='ArrowUp'){ if(on) moveRow(-1); else enter(); e.preventDefault(); kick(); }
+    else if(k==='ArrowDown'){ if(on) moveRow(1); else enter(); e.preventDefault(); kick(); }
+    else if(k==='ArrowLeft'){ if(on) moveCol(-1); else enter(); e.preventDefault(); kick(); }
+    else if(k==='ArrowRight'){ if(on) moveCol(1); else enter(); e.preventDefault(); kick(); }
+  });
+})();
+})();
+</script>
