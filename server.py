@@ -170,6 +170,20 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, *a):            # keep the console quiet
         pass
 
+
+class QuietServer(ThreadingHTTPServer):
+    # False so a second server on Windows can't silently share the port (which made
+    # requests hit random old/new instances); START-RADAR frees the port first instead
+    allow_reuse_address = False
+    def handle_error(self, request, client_address):
+        # a browser tab closing / reloading mid-response aborts the connection —
+        # that's normal, so don't spew a traceback for it
+        import sys
+        if isinstance(sys.exc_info()[1],
+                      (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+            return
+        super().handle_error(request, client_address)
+
 if __name__ == "__main__":
     import socket
     print(f"Flight Radar TV  --  {_C['id']} {_C['name']}")
@@ -182,9 +196,8 @@ if __name__ == "__main__":
         pass
     print(f"  switch airports anytime with SETUP-AIRPORT — no restart needed")
     print("  (Ctrl+C to stop)")
-    ThreadingHTTPServer.allow_reuse_address = True
     try:
-        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+        QuietServer(("0.0.0.0", PORT), Handler).serve_forever()
     except OSError as e:
         print(f"\n  Could not start: port {PORT} is already in use.")
         print("  Another Flight Radar TV server is probably still running —")
