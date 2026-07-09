@@ -24,16 +24,6 @@ def load_config():
     return json.loads(txt[txt.index("{"): txt.rindex("}") + 1])
 
 
-CFG = load_config()
-_C = CFG["center"]
-_RAD = CFG.get("adsbRadiusNm", 100)
-ADSB_URLS = [
-    f"https://api.adsb.lol/v2/point/{_C['lat']}/{_C['lon']}/{_RAD}",
-    f"https://opendata.adsb.fi/api/v2/lat/{_C['lat']}/lon/{_C['lon']}/dist/{_RAD}",
-]
-# LiveATC audio relay: lets the browser measure levels (same-origin) for the
-# priority scanner. Personal listening only — do not rebroadcast.
-ATC_MOUNTS = {ch["mount"] for ch in CFG.get("atcChannels", [])}
 ATC_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
     "Referer": "https://www.liveatc.net/",
@@ -41,13 +31,40 @@ ATC_HEADERS = {
 }
 # a plain browser UA — some sites (FAA registry) refuse scripted user-agents
 BROWSER = {"User-Agent": ATC_HEADERS["User-Agent"]}
-PASSTHRU = {
-    "/api/metar": "https://aviationweather.gov/api/data/metar?ids=" + ",".join(CFG["wxAirports"]) + "&format=json",
-    "/api/taf":   "https://aviationweather.gov/api/data/taf?ids=" + CFG["tafStation"] + "&format=json",
-    "/api/sig":   "https://aviationweather.gov/api/data/airsigmet?format=json",
-    "/api/datis": "https://datis.clowd.io/api/" + CFG["atisStation"],
-}
+
+# ---- live region state, reloaded from config.js whenever the file changes -------
+# This means switching airports (SETUP-AIRPORT) takes effect WITHOUT restarting the
+# server — otherwise the server keeps serving the old airport's traffic/weather/ATC.
+CFG = {}; _C = {}; _RAD = 100
+ADSB_URLS = []; ATC_MOUNTS = set(); PASSTHRU = {}
 _cache = {}
+_cfg_mtime = [0.0]
+
+def refresh_cfg():
+    global CFG, _C, _RAD, ADSB_URLS, ATC_MOUNTS, PASSTHRU, _cache
+    try:
+        m = os.path.getmtime(os.path.join(HERE, "config.js"))
+    except OSError:
+        return
+    if m == _cfg_mtime[0]:
+        return
+    _cfg_mtime[0] = m
+    CFG = load_config()
+    _C = CFG["center"]; _RAD = CFG.get("adsbRadiusNm", 100)
+    ADSB_URLS = [
+        f"https://api.adsb.lol/v2/point/{_C['lat']}/{_C['lon']}/{_RAD}",
+        f"https://opendata.adsb.fi/api/v2/lat/{_C['lat']}/lon/{_C['lon']}/dist/{_RAD}",
+    ]
+    ATC_MOUNTS = {ch["mount"] for ch in CFG.get("atcChannels", [])}
+    PASSTHRU = {
+        "/api/metar": "https://aviationweather.gov/api/data/metar?ids=" + ",".join(CFG["wxAirports"]) + "&format=json",
+        "/api/taf":   "https://aviationweather.gov/api/data/taf?ids=" + CFG["tafStation"] + "&format=json",
+        "/api/sig":   "https://aviationweather.gov/api/data/airsigmet?format=json",
+        "/api/datis": "https://datis.clowd.io/api/" + CFG["atisStation"],
+    }
+    _cache = {}                        # drop the previous airport's cached responses
+
+refresh_cfg()
 
 def fetch(url, timeout=9):
     req = urllib.request.Request(url, headers=UA)
@@ -59,6 +76,7 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*a, directory=HERE, **kw)
 
     def do_GET(self):
+        refresh_cfg()                             # pick up an airport switch live
         path = self.path.split("?")[0]
         if path == "/apk":                        # short URL for sideloading to the TV
             self.send_response(302)
@@ -162,5 +180,12 @@ if __name__ == "__main__":
                 print(f"  TV / other devices on your wifi:  http://{ip}:{PORT}")
     except Exception:
         pass
+    print(f"  switch airports anytime with SETUP-AIRPORT — no restart needed")
     print("  (Ctrl+C to stop)")
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    ThreadingHTTPServer.allow_reuse_address = True
+    try:
+        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    except OSError as e:
+        print(f"\n  Could not start: port {PORT} is already in use.")
+        print("  Another Flight Radar TV server is probably still running —")
+        print("  close its window (or reboot) and run START-RADAR again.\n")

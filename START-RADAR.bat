@@ -11,5 +11,8 @@ if not exist "mapdata\nav_data.js" (
   pause
   exit /b
 )
+rem free port 8478 if an old server is still running, so this is a clean restart
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8478 " ^| findstr LISTENING') do taskkill /f /pid %%a >nul 2>nul
+
 start "" "http://localhost:8478/index.html"
 python server.py 2>nul || py server.py
