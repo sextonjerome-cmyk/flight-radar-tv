@@ -1,8 +1,9 @@
 /* Flight Radar TV -- REGION CONFIG.
    This is the one file you edit to move the whole display to another airport.
    Change "center" to your field, adjust the weather airports and ATC channels,
-   then restart the server. To also regenerate the map, charts and nav data for
-   a faraway region (e.g. California), run:  python setup_region.py KXXX
+   save, then hard-reload the browser (Ctrl+Shift+R) — the server re-reads this
+   file automatically, no restart. To also regenerate the map, charts and nav data
+   for a faraway region (e.g. California), run:  python setup_region.py KXXX
    Both the web app and server.py read this exact file. Keep it valid JSON
    after the "=" (double quotes, no trailing commas, no braces in comments). */
 window.CONFIG = {

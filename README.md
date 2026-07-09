@@ -1,100 +1,55 @@
 # Flight Radar TV
 
-A big-screen, TV-sized flight radar for your living room. It shows **live aircraft**
-around your home airport in a clean glass-cockpit (EFIS) style, with **live ATC radio
-audio**, weather (Doppler/NEXRAD), approaches, airspace, and a 3-D view.
+A TV-sized flight radar for your living room. It shows **live aircraft** around your
+airport in a glass-cockpit (EFIS) style, with **live ATC radio**, weather, approaches,
+airspace, and a 3-D view. Runs in any web browser from a tiny program on your computer.
 
-It runs in any web browser (mini-PC, Raspberry Pi, or the included Android TV app),
-served by a tiny local program on your computer.
-
-> **It works out of the box for Charleston, SC (KCHS)** — just start it (below). To
-> point it at *your* airport instead, run [Set up your airport](#set-up-your-airport)
-> and it downloads the map, approaches, airspace, weather, and frequencies for whatever
-> field you choose.
+**It works out of the box for Charleston, SC.**
 
 ---
 
-## What you need (one time)
+## 1. Install Python (one time)
 
-- **[Python](https://www.python.org/downloads/)** — during install, tick
-  *"Add Python to PATH"*. (Needed to run the server and to set up other airports; the
-  setup tool installs its own image library automatically.)
+Get it from [python.org](https://www.python.org/downloads/). During install, tick
+**"Add Python to PATH."** That's the only thing to install.
 
----
+## 2. Start it
 
-## Set up your airport (optional — it defaults to Charleston)
+Double-click **`START-RADAR`**. Your browser opens the radar. Leave the little black
+window open while you watch — that's the server. Done.
 
-To switch from the default (Charleston) to your field, **double-click `SETUP-AIRPORT`**
-and type your airport's 4-letter ICAO code (e.g. `KLAX`, `KDEN`, `KJFK`, `KSEA`). It
-downloads and builds everything for that field — this takes a few minutes the first time.
+## 3. Use a different airport (optional)
 
-Prefer a terminal? Same thing:
+Double-click **`SETUP-AIRPORT`** and type your airport's 4-letter code (e.g. `KLAX`,
+`KDEN`, `KSEA`). It downloads the map, approaches, airspace, weather, and frequencies
+for that field — a few minutes the first time.
 
-```
-python setup_region.py KLAX
-```
+Then just **reload the browser** (`Ctrl+Shift+R`). Every airport you set up is saved,
+so switching back later is instant.
 
-Handy options:
+## 4. Turn on ATC audio
 
-| Command | Does |
-|---|---|
-| `python setup_region.py KDEN` | Full setup for Denver |
-| `python setup_region.py KDEN --no-charts` | Skip the slow paper-chart download |
-| `python setup_region.py KCHS --rebuild` | Re-download an airport from scratch |
+ATC audio is the one thing you set up by hand (LiveATC has no automatic option):
 
-Each airport you set up is **saved**, so switching back to one you've used before is
-instant (no re-download) and keeps any edits you made.
+1. Open `https://www.liveatc.net/search/?icao=xxxx` for your airport.
+2. Copy a feed's name — the `NAME` in its `NAME.pls` link.
+3. Put it as the `mount` in **`config.js`**, save, reload the browser.
 
-## Watch it
-
-**Double-click `START-RADAR`** (or run `python server.py` and open
-`http://localhost:8478`). Leave the server window open while you watch.
-
-For a TV: run Chrome/Chromium in kiosk mode —
-`chrome --kiosk --autoplay-policy=no-user-gesture-required http://localhost:8478`.
-
-## On an Android TV / Google TV
-
-Install **`FlightRadarTV.apk`** (sideload via the "Downloader" app or `adb install`).
-It's a full-screen browser that points at your computer. On first run (or via the
-Back button) it asks for your computer's address — enter the
-`http://192.168.x.x:8478` that the server window prints.
+Full example and details are in **`RUNNING.md`**. Charleston's audio already works.
 
 ---
 
-## Fine-tuning
+## On a TV
 
-Everything the tool decides is written to **`config.js`** (it ships set up for
-Charleston, SC; SETUP-AIRPORT rewrites it for your field). You can hand-edit it and
-restart the server. The most common tweak is **live ATC audio**: the tool tries to
-find your field's feeds automatically, but if audio is silent, open
-`https://www.liveatc.net/search/?icao=xxxx`, copy the feed name, and set it as the
-`mount` in `config.js`.
+Point any browser on your TV at the network address the server window prints
+(`http://192.168.x.x:8478`), or install the included **`FlightRadarTV.apk`** on
+Android/Google TV. For a full-screen always-on display, see **`RUNNING.md`**.
 
-See **`RUNNING.md`** for the full controls reference.
+## Good to know
 
----
+- **Not for navigation** — it's a hobby display, not a certified aviation tool.
+- **Personal use only** — don't rebroadcast the ATC audio (LiveATC's terms).
+- All data is free: ADS-B traffic, FAA nav/airspace/charts, aviationweather.gov,
+  OpenStreetMap, and LiveATC. See **`RUNNING.md`** for the full list and controls.
 
-## How it works / data sources
-
-All data is free and keyless:
-
-- **Live traffic:** [adsb.lol](https://adsb.lol) / [adsb.fi](https://adsb.fi) (ADS-B)
-- **Aircraft photos:** planespotters.net, airport-data.com, Wikipedia
-- **Nav data** (approaches, navaids, airways): FAA CIFP
-- **Airspace:** FAA (Class B/C/D + special-use)
-- **Weather:** aviationweather.gov (METAR/TAF/SIGMET), RainViewer (NEXRAD)
-- **Map:** OpenStreetMap (coastline/rivers/lakes) + OpenTopoData (terrain)
-- **Charts:** FAA VFR sectional & IFR-low, Esri imagery
-- **Live ATC audio:** LiveATC.net
-
-## Please note
-
-- **Not for navigation.** This is a hobby display, not a certified aviation tool.
-- **Personal use only.** LiveATC's terms don't permit rebroadcasting audio, so run
-  your own copy — don't put a public stream online.
-- Be polite to the free data providers (the app already caches and rate-limits).
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+MIT license — see [LICENSE](LICENSE).

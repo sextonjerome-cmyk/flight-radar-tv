@@ -20,7 +20,9 @@ It's a web app, so it installs everywhere from the same server — no app store.
 ## Move to another airport (great for sharing with a friend)
 **Easiest — double-click `SETUP-AIRPORT`.** It asks for your airport's 4-letter
 code (e.g. `KLAX`), then downloads and builds the whole display for it. When it
-finishes, double-click `START-RADAR`. That's the entire process — no editing files.
+finishes, just **hard-reload the browser** (`Ctrl+Shift+R`) — the server switches
+airports on its own. (If the server isn't running yet, double-click `START-RADAR`
+first.) That's the entire process — no editing files, no restart.
 
 Prefer the command line? Same thing:
 ```
@@ -48,16 +50,34 @@ It downloads and rebuilds **everything** for that field and takes a few minutes
 - the map: coastline, rivers, lakes, terrain           (OpenStreetMap + NED)
 - charts: VFR sectional + IFR-low + satellite
 
-When it finishes, **restart the server** and reload. Everything it decides is
-written into **config.js**, so you can still hand-edit that file afterward — the
-most likely tweak is an **ATC channel**: if the live audio is silent, open
-`https://www.liveatc.net/search/?icao=xxxx`, copy the feed name, and set it as
-the `mount` in config.js.
+When it finishes, **hard-reload the browser** (`Ctrl+Shift+R`) — the server re-reads
+config.js by itself, no restart. Everything it decides is written into **config.js**,
+so you can still hand-edit that file afterward — the most likely tweak is an **ATC
+channel** (see below).
+
+### ATC audio — set up by hand
+ATC audio is **not** set up automatically (LiveATC has no API and blocks scripts), so
+SETUP-AIRPORT leaves a placeholder for you to fill in:
+
+1. Open `https://www.liveatc.net/search/?icao=xxxx` for your field.
+2. Each feed's **play** link points at `.../SOMENAME.pls` — that `SOMENAME` is the
+   **mount**.
+3. Edit the `atcChannels` list in **config.js**:
+   ```json
+   "atcChannels": [
+     {"mount": "kgfk_twr", "label": "GFK TWR", "sub": "118.30", "priority": 1},
+     {"mount": "kgfk_app", "label": "GFK APP", "sub": "126.10", "priority": 2}
+   ]
+   ```
+   `mount` must match the `.pls` code exactly (the relay only allows listed mounts);
+   `label` is the button text, `sub` the small line under it, `priority` the order.
+4. Save and hard-reload the browser. If the field has no LiveATC feed, there's just
+   no live audio for it.
 
 ### Just fine-tuning (no rebuild)
 For small changes near your current field, edit **config.js** directly — `center`,
 `wxAirports`, `atisStation`/`tafStation`, home `runways`, `sigmetBox`,
-`atcChannels` — save, restart the server. No download needed.
+`atcChannels` — save, then hard-reload the browser. No restart, no download needed.
 
 ## ATC audio
 Click a channel chip once (CHS ALL / SAV APP / ZJX CTR) — browsers require one
