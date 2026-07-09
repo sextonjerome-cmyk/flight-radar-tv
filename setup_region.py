@@ -159,25 +159,64 @@ def nearest_wx(center, icao, limit=16, max_nm=95):
     return [icao.upper()] + out
 
 # --------------------------------------------------------------- live ATC ---
-def scrape_liveatc(icao):
-    """Best-effort: read LiveATC's page for this ICAO and pull feed mounts + labels.
-    LiveATC has no API and may block scripted requests; returns [] on failure so the
-    tool falls back to a manual note (edit config.js by hand)."""
-    icao = icao.lower()
+# LiveATC has no API and blocks the search page from scripts, but the audio streams
+# themselves are reachable. So we PROBE the common feed names for this airport and keep
+# the ones actually streaming (a live mount → 200 audio/*; a dead name → 404). This is
+# what makes ATC work automatically when a friend just types a new airport.
+ATC_ROLES = [                          # (mount suffix, label role, sub, sort rank)
+    ("_twr",   "TWR",     "tower",     1),
+    ("",       "",        "twr·gnd",   1),   # bare mount = combined tower/ground scanner
+    ("_gnd",   "GND",     "ground",    2),
+    ("_app",   "APP",     "approach",  2),
+    ("_dep",   "DEP",     "departure", 3),
+    ("_final", "FINAL",   "final",     3),
+    ("_del",   "DEL",     "clearance", 4),
+    ("_clnc",  "CLNC",    "clearance", 4),
+    ("_atis",  "ATIS",    "info",      5),
+]
+
+def _mount_live(mount):
+    """True if this LiveATC mount is a real feed streaming audio right now."""
     try:
-        html = http("https://www.liveatc.net/search/?icao=" + icao, timeout=30,
+        req = urllib.request.Request("http://d.liveatc.net/" + mount,
+              headers={"User-Agent": BROWSER, "Referer": "https://www.liveatc.net/",
+                       "Range": "bytes=0-2000"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return getattr(r, "status", 200) == 200 and "audio" in r.headers.get("Content-Type", "")
+    except Exception:
+        return False
+
+def _scrape_mounts(icao):
+    """Extra mount names from the search page IF it happens to be reachable (it usually
+    isn't) — catches TRACON/Center feeds we can't guess. Verified by probing anyway."""
+    try:
+        html = http("https://www.liveatc.net/search/?icao=" + icao, timeout=20,
                     ua=BROWSER, headers={"Referer": "https://www.liveatc.net/",
                                          "Accept": "text/html"}).decode("utf8", "replace")
-    except Exception as e:
-        print(f"  LiveATC lookup blocked ({e}); add channels by hand in config.js")
+    except Exception:
         return []
-    mounts = list(dict.fromkeys(re.findall(r"(?:play|hear)/([A-Za-z0-9_]+)\.pls", html)))
-    if not mounts:
-        mounts = list(dict.fromkeys(re.findall(r"([A-Za-z0-9_]{3,})\.pls", html)))
-    out = []
-    for i, m in enumerate(mounts[:4]):
-        out.append({"mount": m, "label": m.upper().replace("_", " "),
-                    "sub": "", "priority": i + 1})
+    return list(dict.fromkeys(re.findall(r"([A-Za-z0-9_]{3,})\.pls", html)))
+
+def probe_liveatc(icao):
+    import concurrent.futures
+    icao = icao.lower()
+    disp = icao[1:].upper() if len(icao) == 4 and icao[0] == "k" else icao.upper()
+    cand = {}                                    # mount -> (label, sub, rank)
+    for suf, lab, sub, rank in ATC_ROLES:
+        cand[icao + suf] = (f"{disp} {lab}".strip() if suf else disp, sub, rank)
+    for n in (icao + "1", icao + "2"):           # some fields number their feeds
+        cand.setdefault(n, (disp, "tower", 1))
+    for m in _scrape_mounts(icao):
+        cand.setdefault(m, (m.upper().replace("_", " "), "", 6))
+    print(f"  probing {len(cand)} candidate LiveATC feeds…", flush=True)
+    live = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        for m, ok in zip(list(cand), ex.map(_mount_live, list(cand))):
+            if ok: live.append(m)
+    live.sort(key=lambda m: cand[m][2])
+    out = [{"mount": m, "label": cand[m][0], "sub": cand[m][1], "priority": i + 1}
+           for i, m in enumerate(live[:5])]
+    print(f"  live ATC feeds: {', '.join(live) if live else 'none found — add by hand'}")
     return out
 
 # --------------------------------------------------------------- config.js ---
@@ -195,8 +234,8 @@ def write_config(icao, args):
     rwys = runways_for(icao)
     print("  nearest weather stations…", flush=True)
     wx = nearest_wx(center, icao)
-    print("  live ATC channels (LiveATC)…", flush=True)
-    atc = scrape_liveatc(icao)
+    print("  live ATC channels (probing LiveATC)…", flush=True)
+    atc = probe_liveatc(icao)
     coslat = math.cos(math.radians(center[0]))
     cfg = {
         "center":      {"id": icao.upper(), "name": name,
