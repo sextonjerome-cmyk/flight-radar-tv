@@ -421,11 +421,6 @@ function path(c,pts){
   for(let i=0;i<pts.length;i++){const q=prj(pts[i][0],pts[i][1]);
     i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y);}
 }
-function extendPt(pts,end){   // continue shoreline past the data edge along its bearing
-  const k=end?pts.length-1:0, j=end?Math.max(0,k-6):Math.min(pts.length-1,6);
-  const dy=pts[k][0]-pts[j][0], dx=pts[k][1]-pts[j][1], m=Math.hypot(dy,dx)||1;
-  return [pts[k][0]+dy/m*4, pts[k][1]+dx/m*4];
-}
 function nmVec(h){ const r=h*Math.PI/180; return [Math.cos(r)/60, Math.sin(r)/(60*COSLAT)]; }
 
 function buildMap(){
@@ -446,18 +441,9 @@ function renderMap(c, vh){
     const tl=prj(MAP.bbox[2],MAP.bbox[1]), br=prj(MAP.bbox[0],MAP.bbox[3]);
     c.imageSmoothingEnabled=true;
     c.drawImage(terrCvs, tl.x, tl.y, br.x-tl.x, br.y-tl.y);
-    // ocean: real shoreline, extended offshore past the data edge (coastal fields only —
-    // inland airports have no coastline, so MAP.coasts is empty and we skip the sea fill)
-    if(MAP.coasts && MAP.coasts.length){
-      const coast=MAP.coasts.reduce((a,b)=>b.length>a.length?b:a, MAP.coasts[0]);
-      const a=extendPt(coast,false), b=extendPt(coast,true), far=[CTR.lat-5,CTR.lon+6];
-      c.fillStyle=WATER; c.beginPath();
-      let q=prj(a[0],a[1]); c.moveTo(q.x,q.y);
-      for(const p of coast){ q=prj(p[0],p[1]); c.lineTo(q.x,q.y); }
-      for(const p of [b,far]){ q=prj(p[0],p[1]); c.lineTo(q.x,q.y); }
-      c.closePath(); c.fill();
-    }
-    // detailed water polygons (fills tidal estuaries / wide rivers, not just open sea)
+    // ocean + tidal estuaries: filled from MAP.water, the real closed water polygons
+    // built by setup_region.py (these cover the open sea to the data edge whichever
+    // way the coast faces — east at Charleston, west at LAX — so no hardcoded fill).
     c.fillStyle=WATER;
     if(MAP.water) for(const poly of MAP.water){ path(c,poly); c.closePath(); c.fill(); }
     // islands (marsh-level land), lakes, rivers
@@ -1476,15 +1462,7 @@ function paintWaterMask(cx,vh,ky){
   cx.setTransform(2,0,0,2*ky,0,0); cx.clearRect(0,0,CW,vh);
   cx.globalCompositeOperation='source-over'; cx.fillStyle='#fff';
   VH=vh;
-  if(MAP.coasts && MAP.coasts.length){                  // coastal fields only
-    const coast=MAP.coasts.reduce((a,b)=>b.length>a.length?b:a, MAP.coasts[0]);
-    const a=extendPt(coast,false), b=extendPt(coast,true), far=[CTR.lat-5,CTR.lon+6];
-    cx.beginPath();
-    let q=prj(a[0],a[1]); cx.moveTo(q.x,q.y);
-    for(const p of coast){ q=prj(p[0],p[1]); cx.lineTo(q.x,q.y); }
-    for(const p of [b,far]){ q=prj(p[0],p[1]); cx.lineTo(q.x,q.y); }
-    cx.closePath(); cx.fill();
-  }
+  // wave mask = the real water polygons (open sea + estuaries), same as the map fill
   if(MAP.water) for(const poly of MAP.water){ path(cx,poly); cx.closePath(); cx.fill(); }
   for(const poly of MAP.lakes){ path(cx,poly); cx.closePath(); cx.fill(); }
   // rivers are intentionally excluded — no wave sparkle on narrow inland water
