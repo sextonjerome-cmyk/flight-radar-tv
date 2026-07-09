@@ -152,6 +152,9 @@
   #aptCard h2,#atcCard h2{margin:0 0 8px;font-size:27px;font-weight:600;color:#D7DEE5;letter-spacing:.02em;}
   #aptCard p,#atcCard p{margin:0 0 22px;font-size:15px;color:#7A8792;line-height:1.55;}
   #aptCard p b,#atcCard p b{color:#5C9CE6;}
+  #atcCard p a{color:#5C9CE6;text-decoration:underline;text-underline-offset:2px;
+    word-break:break-all;}
+  #atcCard p a:focus{outline:2px solid #5C9CE6;outline-offset:2px;border-radius:3px;}
   #aptInput,#atcInput{width:100%;box-sizing:border-box;font-size:32px;letter-spacing:.16em;
     text-transform:uppercase;text-align:center;padding:14px 10px;color:#EAF0F6;
     background:#050d15;border:2px solid #3A78C8;border-radius:10px;
@@ -198,8 +201,8 @@
       <h2>Add ATC channel</h2>
       <p>Tower &amp; ground are found automatically. Use this for <b>Approach / Center</b>
          feeds, which are named after the radar facility. Look the feed name up at
-         <b id="atcLink">liveatc.net</b>, type it below, and I'll check it's actually
-         on the air before adding it.</p>
+         <a id="atcLink" href="https://www.liveatc.net/" target="_blank" rel="noopener">liveatc.net</a>,
+         type it below, and I'll check it's actually on the air before adding it.</p>
       <input id="atcInput" maxlength="24" autocomplete="off" spellcheck="false"
              placeholder="socal_app" />
       <input id="atcLabel" maxlength="16" autocomplete="off" spellcheck="false"
@@ -1875,6 +1878,7 @@ document.getElementById('homeReset').addEventListener('click',resetHome);
   const openBox=()=>{ modal.classList.add('show'); inp.value=''; lab.value='';
     inp.style.borderColor='#3A78C8'; spin.style.display='none';
     const id=((CONFIG.center&&CONFIG.center.id)||'').toLowerCase();
+    link.href='https://www.liveatc.net/search/?icao='+id;
     link.textContent='liveatc.net/search/?icao='+id; renderExisting(); setTimeout(()=>inp.focus(),60); };
   const closeBox=()=>{ modal.classList.remove('show'); };
   async function testAdd(){
