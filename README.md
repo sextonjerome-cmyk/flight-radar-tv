@@ -7,25 +7,26 @@ audio**, weather (Doppler/NEXRAD), approaches, airspace, and a 3-D view.
 It runs in any web browser (mini-PC, Raspberry Pi, or the included Android TV app),
 served by a tiny local program on your computer.
 
-> **Point it at *your* airport in one step** — see [Set up your airport](#set-up-your-airport)
-> below. It downloads the map, approaches, airspace, weather, and frequencies for
-> whatever field you choose.
+> **It works out of the box for Charleston, SC (KCHS)** — just start it (below). To
+> point it at *your* airport instead, run [Set up your airport](#set-up-your-airport)
+> and it downloads the map, approaches, airspace, weather, and frequencies for whatever
+> field you choose.
 
 ---
 
 ## What you need (one time)
 
 - **[Python](https://www.python.org/downloads/)** — during install, tick
-  *"Add Python to PATH"*. (That's the only requirement; the setup tool installs its
-  own image library automatically.)
+  *"Add Python to PATH"*. (Needed to run the server and to set up other airports; the
+  setup tool installs its own image library automatically.)
 
 ---
 
-## Set up your airport
+## Set up your airport (optional — it defaults to Charleston)
 
-**Double-click `SETUP-AIRPORT`** and type your airport's 4-letter ICAO code
-(e.g. `KLAX`, `KDEN`, `KJFK`, `KSEA`). It downloads and builds everything for that
-field — this takes a few minutes the first time.
+To switch from the default (Charleston) to your field, **double-click `SETUP-AIRPORT`**
+and type your airport's 4-letter ICAO code (e.g. `KLAX`, `KDEN`, `KJFK`, `KSEA`). It
+downloads and builds everything for that field — this takes a few minutes the first time.
 
 Prefer a terminal? Same thing:
 
@@ -63,11 +64,12 @@ Back button) it asks for your computer's address — enter the
 
 ## Fine-tuning
 
-SETUP-AIRPORT creates a **`config.js`** for your field (see `config.example.js` for
-the format). You can hand-edit it and restart the server. The most common tweak is
-**live ATC audio**: the tool tries to find your field's feeds automatically, but if
-audio is silent, open `https://www.liveatc.net/search/?icao=xxxx`, copy the feed name,
-and set it as the `mount` in `config.js`.
+Everything the tool decides is written to **`config.js`** (it ships set up for
+Charleston, SC; SETUP-AIRPORT rewrites it for your field). You can hand-edit it and
+restart the server. The most common tweak is **live ATC audio**: the tool tries to
+find your field's feeds automatically, but if audio is silent, open
+`https://www.liveatc.net/search/?icao=xxxx`, copy the feed name, and set it as the
+`mount` in `config.js`.
 
 See **`RUNNING.md`** for the full controls reference.
 
