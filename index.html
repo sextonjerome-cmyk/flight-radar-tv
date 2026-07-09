@@ -988,7 +988,8 @@ function drawApproaches(c,fam){
       // chart-style localizer feather: narrow at the runway, widening outward,
       // V-notch at the far end, one side shaded solid
       const len=14*pxPerNm, notch=len*.1;
-      const wl=Math.tan((A.ils.width/2)*Math.PI/180)*len;
+      const bw=Math.min(6,Math.max(2,A.ils.width||4));   // clamp: a localizer is a few °
+      const wl=Math.tan((bw/2)*Math.PI/180)*len;
       const nx=-dy, ny=dx;
       const qe={x:pm.x+dx*len, y:pm.y+dy*len};
       const qn={x:pm.x+dx*(len-notch), y:pm.y+dy*(len-notch)};

@@ -218,6 +218,14 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def end_headers(self):
+        # never let the browser cache the region files — otherwise switching airports
+        # can show the previous field's map/nav from a stale cache (esp. on TV WebViews)
+        p = self.path.split("?")[0]
+        if p in ("/config.js", "/index.html", "/") or p.startswith("/mapdata/"):
+            self.send_header("Cache-Control", "no-store, must-revalidate")
+        super().end_headers()
+
     def log_message(self, *a):            # keep the console quiet
         pass
 

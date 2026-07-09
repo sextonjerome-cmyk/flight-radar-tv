@@ -69,8 +69,11 @@ def restore_region(icao):
     for rel in REGION_FILES:
         src = d / rel
         if src.exists():
-            (HERE / rel).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, HERE / rel)
+            dst = HERE / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            os.utime(dst, None)          # bump mtime to NOW so browsers don't serve a
+                                         # stale cached copy of the previous airport
     return True
 
 def http(url, data=None, timeout=60, ua="FlightRadarTV-setup/1.0 (personal project)",
@@ -320,7 +323,10 @@ def parse_cifp(center, bbox):
                 if not 2.0 <= gs <= 4.5: gs = 3.0
                 ils_ix[(icao, l[27:32].strip())] = {"ident": l[13:18].strip().rstrip("0123456789"),
                     "f": round(int(l[22:27])/100, 2), "crs": crs,
-                    "width": (int(g[1])/10) if g else 3.8, "gs": gs}
+                    # real localizer course is ~700 ft wide at threshold → a few degrees.
+                    # The exact value isn't reliably in this record, so use a fixed 4.0°
+                    # for the chart-style feather instead of mis-parsing a stray number.
+                    "width": 4.0, "gs": gs}
             elif sub == "F" and icao in appr_apts:
                 proc, trans = l[13:19].strip(), l[19:25].strip()
                 appr_raw.setdefault((icao, proc), {}).setdefault(trans, []).append(
@@ -377,8 +383,12 @@ def parse_cifp(center, bbox):
         if best.get((icao, kind, rwy)) != proc: continue
         out = {"apt": icao, "rwy": rwy,
                "title": f"{TYPE.get(kind, kind)} RWY {rwy.lstrip('0')}", "final": [], "trans": []}
-        ils = ils_ix.get((icao, "RW"+rwy)) or (kind == "I" and next(
-              (v for (a, r), v in ils_ix.items() if a == icao and r.startswith("RW"+rwy)), None)) or None
+        # attach a localizer (→ ILS feather) ONLY to actual ILS/LOC approaches, never
+        # to the RNAV approach that happens to serve the same runway
+        ils = None
+        if kind in ("I", "L", "X"):
+            ils = ils_ix.get((icao, "RW"+rwy)) or next(
+                  (v for (a, r), v in ils_ix.items() if a == icao and r.startswith("RW"+rwy)), None)
         if ils: out["ils"] = ils
         fin_key = None
         for tk, legs in groups.items():
