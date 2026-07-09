@@ -102,6 +102,25 @@ def fetch(url, timeout=9):
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
+# ---- add/remove ATC channels from the app (for Approach/Center feeds the auto-finder
+# can't guess). A live LiveATC mount redirects to a 200 audio stream; a dead name 404s.
+def probe_mount(mount):
+    try:
+        req = urllib.request.Request("http://d.liveatc.net/" + mount,
+              headers={"User-Agent": ATC_HEADERS["User-Agent"],
+                       "Referer": "https://www.liveatc.net/", "Range": "bytes=0-2000"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return getattr(r, "status", 200) == 200 and "audio" in r.headers.get("Content-Type", "")
+    except Exception:
+        return False
+
+def write_config_obj(cfg):
+    path = os.path.join(HERE, "config.js")
+    txt = open(path, encoding="utf-8").read()
+    i, j = txt.index("{"), txt.rindex("}") + 1
+    open(path, "w", encoding="utf-8").write(txt[:i] + json.dumps(cfg, indent=2) + txt[j:])
+    _cfg_mtime[0] = 0                                 # force a reload on the next request
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=HERE, **kw)
@@ -114,6 +133,10 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Location", "/FlightRadarTV.apk")
             self.end_headers()
             return
+        if path == "/api/atc/add":
+            return self.atc_add()
+        if path == "/api/atc/remove":
+            return self.atc_remove()
         if path == "/api/setup":
             return self.start_setup()
         if path == "/api/setup/status":
@@ -161,6 +184,34 @@ class Handler(SimpleHTTPRequestHandler):
         finally:
             try: up.close()
             except Exception: pass
+
+    def atc_add(self):
+        q = parse_qs(urlparse(self.path).query)
+        mount = re.sub(r"[^a-z0-9_]", "", (q.get("mount") or [""])[0].lower())
+        label = re.sub(r"[^A-Za-z0-9 ·/+.-]", "", (q.get("label") or [""])[0]).strip()[:16]
+        if not mount:
+            return self.send_error(400, "no mount")
+        if not probe_mount(mount):                    # only add feeds that actually stream
+            return self.send_json(json.dumps({"ok": False, "reason": "not_live", "mount": mount}).encode())
+        cfg = load_config()
+        chans = [c for c in cfg.get("atcChannels", []) if c.get("mount") not in ("REPLACE_ME", mount)]
+        chans.append({"mount": mount, "label": label or mount.upper().replace("_", " "),
+                      "sub": "added", "priority": len(chans) + 1})
+        cfg["atcChannels"] = chans
+        write_config_obj(cfg)
+        return self.send_json(json.dumps({"ok": True, "mount": mount, "channels": chans}).encode())
+
+    def atc_remove(self):
+        mount = re.sub(r"[^a-z0-9_]", "",
+                       (parse_qs(urlparse(self.path).query).get("mount") or [""])[0].lower())
+        cfg = load_config()
+        chans = [c for c in cfg.get("atcChannels", []) if c.get("mount") != mount]
+        for i, c in enumerate(chans):
+            c["priority"] = i + 1
+        cfg["atcChannels"] = chans or [{"mount": "REPLACE_ME", "label": cfg["center"]["id"],
+                                        "sub": "add from liveatc.net", "priority": 1}]
+        write_config_obj(cfg)
+        return self.send_json(json.dumps({"ok": True, "channels": cfg["atcChannels"]}).encode())
 
     def start_setup(self):
         icao = (parse_qs(urlparse(self.path).query).get("icao") or [""])[0]

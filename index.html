@@ -144,25 +144,36 @@
          color:#4A545D;font-size:13px;letter-spacing:.08em;}
   .pfoot b{color:var(--dim);font-weight:600;font-size:16px;}
   /* --- change-airport overlay --- */
-  #aptModal{position:fixed;inset:0;z-index:60;display:none;
+  #aptModal,#atcModal{position:fixed;inset:0;z-index:60;display:none;
     background:rgba(4,10,18,.93);align-items:center;justify-content:center;}
-  #aptModal.show{display:flex;}
-  #aptCard{width:min(700px,86vw);background:#0b1622;border:1px solid #2A3742;
+  #aptModal.show,#atcModal.show{display:flex;}
+  #aptCard,#atcCard{width:min(700px,86vw);background:#0b1622;border:1px solid #2A3742;
     border-radius:14px;padding:34px 36px;box-shadow:0 22px 66px rgba(0,0,0,.6);}
-  #aptCard h2{margin:0 0 8px;font-size:27px;font-weight:600;color:#D7DEE5;letter-spacing:.02em;}
-  #aptCard p{margin:0 0 22px;font-size:15px;color:#7A8792;line-height:1.55;}
-  #aptInput{width:100%;box-sizing:border-box;font-size:32px;letter-spacing:.16em;
+  #aptCard h2,#atcCard h2{margin:0 0 8px;font-size:27px;font-weight:600;color:#D7DEE5;letter-spacing:.02em;}
+  #aptCard p,#atcCard p{margin:0 0 22px;font-size:15px;color:#7A8792;line-height:1.55;}
+  #aptCard p b,#atcCard p b{color:#5C9CE6;}
+  #aptInput,#atcInput{width:100%;box-sizing:border-box;font-size:32px;letter-spacing:.16em;
     text-transform:uppercase;text-align:center;padding:14px 10px;color:#EAF0F6;
     background:#050d15;border:2px solid #3A78C8;border-radius:10px;
     font-family:inherit;outline:none;}
-  #aptSpin{display:none;margin-top:18px;font-size:17px;color:#5C9CE6;}
+  #atcLabel{width:100%;box-sizing:border-box;margin-top:12px;font-size:18px;
+    text-align:center;padding:10px;color:#C7D0D8;background:#050d15;
+    border:1px solid #2A3742;border-radius:8px;font-family:inherit;outline:none;}
+  #aptSpin,#atcSpin{display:none;margin-top:18px;font-size:17px;color:#5C9CE6;}
   #aptLog{display:none;margin-top:18px;max-height:230px;overflow-y:auto;
     background:#050d15;border:1px solid #223040;border-radius:8px;padding:14px 16px;
     font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.6;
     color:#8FA6B8;white-space:pre-wrap;}
-  #aptBtns{display:flex;gap:12px;margin-top:24px;}
-  #aptBtns .rchip{font-size:18px;padding:12px 24px;}
-  #aptGo{background:#1c3a5e;border-color:#3A78C8;color:#EAF0F6;}
+  #aptBtns,#atcBtns{display:flex;gap:12px;margin-top:24px;}
+  #aptBtns .rchip,#atcBtns .rchip{font-size:18px;padding:12px 24px;}
+  #aptGo,#atcTest{background:#1c3a5e;border-color:#3A78C8;color:#EAF0F6;}
+  #atcExisting{margin-top:22px;display:flex;flex-direction:column;gap:8px;}
+  #atcExisting .row{display:flex;align-items:center;gap:10px;font-size:15px;color:#AEB8C0;}
+  #atcExisting .row b{color:#D7DEE5;font-weight:600;min-width:110px;}
+  #atcExisting .row .mnt{color:#68757F;font-family:ui-monospace,Consolas,monospace;font-size:13px;flex:1;}
+  #atcExisting .row .rm{cursor:pointer;color:#C77;border:1px solid #5a3a3a;border-radius:6px;
+    padding:2px 9px;font-size:13px;}
+  #atcAdd{font-size:12px;padding:4px 10px;margin-top:4px;display:inline-block;}
 </style>
 
 <div id="stage">
@@ -179,6 +190,25 @@
       <div id="aptBtns">
         <span class="rchip" id="aptGo" tabindex="0">LOAD AIRPORT</span>
         <span class="rchip" id="aptCancel" tabindex="0">CANCEL</span>
+      </div>
+    </div>
+  </div>
+  <div id="atcModal" role="dialog" aria-modal="true">
+    <div id="atcCard">
+      <h2>Add ATC channel</h2>
+      <p>Tower &amp; ground are found automatically. Use this for <b>Approach / Center</b>
+         feeds, which are named after the radar facility. Look the feed name up at
+         <b id="atcLink">liveatc.net</b>, type it below, and I'll check it's actually
+         on the air before adding it.</p>
+      <input id="atcInput" maxlength="24" autocomplete="off" spellcheck="false"
+             placeholder="socal_app" />
+      <input id="atcLabel" maxlength="16" autocomplete="off" spellcheck="false"
+             placeholder="Label shown on the button (optional)" />
+      <div id="atcSpin"></div>
+      <div id="atcExisting"></div>
+      <div id="atcBtns">
+        <span class="rchip" id="atcTest" tabindex="0">TEST &amp; ADD</span>
+        <span class="rchip" id="atcCancel" tabindex="0">CLOSE</span>
       </div>
     </div>
   </div>
@@ -302,6 +332,8 @@
       <span class="onair" id="onair"><span class="dot"></span><span id="onairTxt">TAP A CHANNEL</span></span>
     </div>
     <div class="chans" id="chans"><!-- channel chips built from CONFIG.atcChannels --></div>
+    <span class="rchip" id="atcAdd" tabindex="0"
+          title="Add an Approach/Center feed by name">＋ ADD ATC CHANNEL</span>
     <div class="meterRow"><div id="meter"></div></div>
     <div class="volRow">VOL <input id="vol" type="range" min="0" max="100" value="70" aria-label="ATC volume"></div>
 
@@ -1815,6 +1847,54 @@ document.getElementById('homeReset').addEventListener('click',resetHome);
     el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn();} }); };
   key(chg,openBox); key(goBtn,start); key(cancelBtn,closeBox);
   input.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();start();} });
+})();
+
+// ---- Add-ATC-channel overlay: type a LiveATC feed name, the server verifies it's
+// actually streaming, then adds it (for Approach/Center feeds the probe can't guess) ----
+(function(){
+  const modal=document.getElementById('atcModal'), inp=document.getElementById('atcInput'),
+        lab=document.getElementById('atcLabel'), spin=document.getElementById('atcSpin'),
+        testBtn=document.getElementById('atcTest'), closeBtn=document.getElementById('atcCancel'),
+        addBtn=document.getElementById('atcAdd'), link=document.getElementById('atcLink'),
+        existing=document.getElementById('atcExisting');
+  function renderExisting(){
+    const chans=(window.CONFIG&&CONFIG.atcChannels)||[]; existing.innerHTML='';
+    for(const c of chans){
+      if(c.mount==='REPLACE_ME') continue;
+      const row=document.createElement('div'); row.className='row';
+      row.innerHTML='<b>'+(c.label||c.mount)+'</b><span class="mnt">'+c.mount+'</span>';
+      const rm=document.createElement('span'); rm.className='rm'; rm.textContent='REMOVE'; rm.tabIndex=0;
+      const go=async()=>{ rm.textContent='…';
+        try{ await fetch('/api/atc/remove?mount='+encodeURIComponent(c.mount)); location.reload(); }
+        catch(e){ rm.textContent='REMOVE'; } };
+      rm.addEventListener('click',go);
+      rm.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();go();} });
+      row.appendChild(rm); existing.appendChild(row);
+    }
+  }
+  const openBox=()=>{ modal.classList.add('show'); inp.value=''; lab.value='';
+    inp.style.borderColor='#3A78C8'; spin.style.display='none';
+    const id=((CONFIG.center&&CONFIG.center.id)||'').toLowerCase();
+    link.textContent='liveatc.net/search/?icao='+id; renderExisting(); setTimeout(()=>inp.focus(),60); };
+  const closeBox=()=>{ modal.classList.remove('show'); };
+  async function testAdd(){
+    const mount=(inp.value||'').trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+    if(!mount){ inp.style.borderColor='#E06B6B'; inp.focus(); return; }
+    inp.style.borderColor='#3A78C8'; spin.style.display='block'; spin.style.color='#5C9CE6';
+    spin.textContent='Checking '+mount+' is on the air…';
+    try{
+      const j=await (await fetch('/api/atc/add?mount='+encodeURIComponent(mount)+
+                    '&label='+encodeURIComponent(lab.value.trim()))).json();
+      if(j.ok){ spin.style.color='#5CE68A'; spin.textContent='Added '+mount+' — loading…';
+        setTimeout(()=>location.reload(),900); }
+      else { spin.style.color='#E06B6B';
+        spin.textContent='“'+mount+'” is not a live feed. Check the name on liveatc.net and try again.'; }
+    }catch(e){ spin.style.color='#E06B6B'; spin.textContent='Could not reach the server.'; }
+  }
+  const key=(el,fn)=>{ el.addEventListener('click',fn);
+    el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn();} }); };
+  key(addBtn,openBox); key(testBtn,testAdd); key(closeBtn,closeBox);
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();testAdd();} });
 })();
 // hint: tapping an airport recenters on it and shows its CTAF
 // collapsible control panel
