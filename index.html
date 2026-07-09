@@ -143,9 +143,45 @@
   .pfoot{margin-top:auto;display:flex;justify-content:space-between;align-items:baseline;
          color:#4A545D;font-size:13px;letter-spacing:.08em;}
   .pfoot b{color:var(--dim);font-weight:600;font-size:16px;}
+  /* --- change-airport overlay --- */
+  #aptModal{position:fixed;inset:0;z-index:60;display:none;
+    background:rgba(4,10,18,.93);align-items:center;justify-content:center;}
+  #aptModal.show{display:flex;}
+  #aptCard{width:min(700px,86vw);background:#0b1622;border:1px solid #2A3742;
+    border-radius:14px;padding:34px 36px;box-shadow:0 22px 66px rgba(0,0,0,.6);}
+  #aptCard h2{margin:0 0 8px;font-size:27px;font-weight:600;color:#D7DEE5;letter-spacing:.02em;}
+  #aptCard p{margin:0 0 22px;font-size:15px;color:#7A8792;line-height:1.55;}
+  #aptInput{width:100%;box-sizing:border-box;font-size:32px;letter-spacing:.16em;
+    text-transform:uppercase;text-align:center;padding:14px 10px;color:#EAF0F6;
+    background:#050d15;border:2px solid #3A78C8;border-radius:10px;
+    font-family:inherit;outline:none;}
+  #aptSpin{display:none;margin-top:18px;font-size:17px;color:#5C9CE6;}
+  #aptLog{display:none;margin-top:18px;max-height:230px;overflow-y:auto;
+    background:#050d15;border:1px solid #223040;border-radius:8px;padding:14px 16px;
+    font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.6;
+    color:#8FA6B8;white-space:pre-wrap;}
+  #aptBtns{display:flex;gap:12px;margin-top:24px;}
+  #aptBtns .rchip{font-size:18px;padding:12px 24px;}
+  #aptGo{background:#1c3a5e;border-color:#3A78C8;color:#EAF0F6;}
 </style>
 
 <div id="stage">
+  <div id="aptModal" role="dialog" aria-modal="true">
+    <div id="aptCard">
+      <h2>Change airport</h2>
+      <p>Type a 4-letter airport code (e.g. KLAX, KJFK, KDEN) and select LOAD.
+         Everything for that field — map, approaches, airspace, weather and
+         frequencies — downloads automatically. The first time takes a few minutes.</p>
+      <input id="aptInput" maxlength="4" autocomplete="off" spellcheck="false"
+             inputmode="text" placeholder="KLAX" />
+      <div id="aptSpin"></div>
+      <div id="aptLog"></div>
+      <div id="aptBtns">
+        <span class="rchip" id="aptGo" tabindex="0">LOAD AIRPORT</span>
+        <span class="rchip" id="aptCancel" tabindex="0">CANCEL</span>
+      </div>
+    </div>
+  </div>
   <div id="radarWrap">
     <canvas id="radar" width="3120" height="2160"></canvas>
     <div class="ident"><b>KCHS</b> · CHARLESTON · ADS-B</div>
@@ -206,6 +242,11 @@
         <span class="rchip" data-view="3d" tabindex="0">3D</span>
         <span class="lbl" style="width:16px"></span>
         <span class="rchip" data-o="wave" tabindex="0" title="Animated water (EFIS)">WAVES</span>
+      </div>
+      <div class="ctlRow">
+        <span class="lbl">FIELD</span>
+        <span class="rchip" id="chgAirport" tabindex="0"
+              title="Download a different airport">CHANGE AIRPORT</span>
       </div>
       </div>
     </div>
@@ -1753,6 +1794,49 @@ document.querySelectorAll('.rchip[data-o]').forEach(c=>chipKeys(c,()=>{
 }));
 // return-to-Charleston button (shown when centered elsewhere)
 document.getElementById('homeReset').addEventListener('click',resetHome);
+
+// ---- Change-airport overlay: enter an ICAO, the server downloads everything for
+// that field (setup_region.py), streams progress, then the page reloads into it ----
+(function(){
+  const modal=document.getElementById('aptModal'), input=document.getElementById('aptInput'),
+        log=document.getElementById('aptLog'), spin=document.getElementById('aptSpin'),
+        goBtn=document.getElementById('aptGo'), cancelBtn=document.getElementById('aptCancel'),
+        chg=document.getElementById('chgAirport');
+  let polling=null;
+  const openBox=()=>{ modal.classList.add('show'); input.value=''; input.disabled=false;
+    input.style.borderColor='#3A78C8'; log.style.display='none'; log.textContent='';
+    spin.style.display='none'; goBtn.style.display=''; goBtn.textContent='LOAD AIRPORT';
+    setTimeout(()=>input.focus(),60); };
+  const closeBox=()=>{ modal.classList.remove('show'); if(polling){clearInterval(polling);polling=null;} };
+  const fail=m=>{ spin.style.display='block'; spin.style.color='#E06B6B'; spin.textContent=m;
+    goBtn.style.display=''; goBtn.textContent='TRY AGAIN'; input.disabled=false; };
+  async function start(){
+    const icao=(input.value||'').trim().toUpperCase();
+    if(!/^[A-Z]{3,4}$/.test(icao)){ input.style.borderColor='#E06B6B'; input.focus(); return; }
+    input.style.borderColor='#3A78C8'; input.disabled=true; goBtn.style.display='none';
+    spin.style.display='block'; spin.style.color='#5C9CE6'; spin.textContent='Starting…';
+    log.style.display='block'; log.textContent='';
+    try{ const j=await (await fetch('/api/setup?icao='+icao)).json();
+      if(!(j.started||j.running||j.already)){ fail('Could not start setup.'); return; }
+    }catch(e){ fail('Could not reach the server.'); return; }
+    if(polling) clearInterval(polling);
+    polling=setInterval(async()=>{
+      try{ const j=await (await fetch('/api/setup/status')).json();
+        if(j.lines&&j.lines.length){ log.textContent=j.lines.join('\n'); log.scrollTop=log.scrollHeight; }
+        if(j.running) spin.textContent='Downloading '+(j.icao||icao)+'… (leave this on screen)';
+        if(j.done&&!j.running){ clearInterval(polling); polling=null;
+          if(j.ok){ spin.style.color='#5CE68A'; spin.textContent=(j.icao||icao)+' is ready — loading…';
+            setTimeout(()=>location.reload(),1300); }
+          else fail('Setup failed — check the log above, then try again.');
+        }
+      }catch(e){/* transient — keep polling */}
+    },1000);
+  }
+  const key=(el,fn)=>{ el.addEventListener('click',fn);
+    el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn();} }); };
+  key(chg,openBox); key(goBtn,start); key(cancelBtn,closeBox);
+  input.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();start();} });
+})();
 // hint: tapping an airport recenters on it and shows its CTAF
 // collapsible control panel
 const ctlTog=document.getElementById('ctlTog');

@@ -4,7 +4,7 @@ Serves the app files AND proxies the live data feeds, so the browser never
 deals with CORS or a flaky upstream. Run via START-RADAR.bat (or:
 `python server.py`), then open http://localhost:8478
 """
-import json, os, re, time, urllib.request
+import json, os, re, sys, time, subprocess, threading, urllib.request
 from urllib.parse import urlparse, parse_qs
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
@@ -48,8 +48,12 @@ def refresh_cfg():
         return
     if m == _cfg_mtime[0]:
         return
+    try:
+        new = load_config()                # may fail if setup_region is mid-write
+    except (ValueError, OSError):
+        return                             # keep the current config until it's valid
     _cfg_mtime[0] = m
-    CFG = load_config()
+    CFG = new
     _C = CFG["center"]; _RAD = CFG.get("adsbRadiusNm", 100)
     ADSB_URLS = [
         f"https://api.adsb.lol/v2/point/{_C['lat']}/{_C['lon']}/{_RAD}",
@@ -65,6 +69,33 @@ def refresh_cfg():
     _cache = {}                        # drop the previous airport's cached responses
 
 refresh_cfg()
+
+# ---- on-demand airport setup, triggered from the app ("Change airport" box) -----
+# Runs setup_region.py in the background and streams its progress so the TV can show
+# a "downloading…" screen, then reloads itself when the new airport is ready.
+_setup = {"running": False, "icao": None, "lines": [], "done": False, "ok": False}
+_setup_lock = threading.Lock()
+
+def run_setup(icao):
+    _setup.update(running=True, icao=icao, lines=[], done=False, ok=False)
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, os.path.join(HERE, "setup_region.py"), icao],
+            cwd=HERE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1, encoding="utf-8", errors="replace")
+        for line in proc.stdout:
+            line = line.rstrip()
+            if line:
+                _setup["lines"].append(line)
+                del _setup["lines"][:-200]          # keep the tail only
+        _setup["ok"] = (proc.wait() == 0)
+    except Exception as e:
+        _setup["lines"].append(f"error: {e}")
+        _setup["ok"] = False
+    finally:
+        _setup["running"] = False
+        _setup["done"] = True
+        _cfg_mtime[0] = 0                            # force a config reload next request
 
 def fetch(url, timeout=9):
     req = urllib.request.Request(url, headers=UA)
@@ -83,6 +114,14 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Location", "/FlightRadarTV.apk")
             self.end_headers()
             return
+        if path == "/api/setup":
+            return self.start_setup()
+        if path == "/api/setup/status":
+            return self.send_json(json.dumps({
+                "running": _setup["running"], "icao": _setup["icao"],
+                "done": _setup["done"], "ok": _setup["ok"],
+                "lines": _setup["lines"][-30:],
+            }).encode())
         if path == "/api/adsb":
             return self.cached("adsb", 4, self.get_adsb)
         if path == "/api/reg":
@@ -122,6 +161,18 @@ class Handler(SimpleHTTPRequestHandler):
         finally:
             try: up.close()
             except Exception: pass
+
+    def start_setup(self):
+        icao = (parse_qs(urlparse(self.path).query).get("icao") or [""])[0]
+        icao = re.sub(r"[^A-Za-z0-9]", "", icao).upper()
+        if not re.fullmatch(r"[A-Z]{3,4}\d?", icao or ""):
+            return self.send_error(400, "bad airport code")
+        with _setup_lock:
+            if _setup["running"]:
+                return self.send_json(json.dumps(
+                    {"running": True, "icao": _setup["icao"], "already": True}).encode())
+            threading.Thread(target=run_setup, args=(icao,), daemon=True).start()
+        return self.send_json(json.dumps({"running": True, "icao": icao, "started": True}).encode())
 
     def cached(self, key, ttl, fn):
         now = time.time()

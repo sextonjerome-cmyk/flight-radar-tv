@@ -20,12 +20,14 @@ window open while you watch — that's the server. Done.
 
 ## 3. Use a different airport (optional)
 
-Double-click **`SETUP-AIRPORT`** and type your airport's 4-letter code (e.g. `KLAX`,
-`KDEN`, `KSEA`). It downloads the map, approaches, airspace, weather, and frequencies
-for that field — a few minutes the first time.
+**From the app itself** (works on the TV too): open **CONTROLS → CHANGE AIRPORT**,
+type a 4-letter code (e.g. `KLAX`), and select **LOAD**. It downloads the map,
+approaches, airspace, weather, and frequencies, then loads that field automatically —
+a few minutes the first time.
 
-Then just **reload the browser** (`Ctrl+Shift+R`). Every airport you set up is saved,
-so switching back later is instant.
+Prefer the computer? Double-click **`SETUP-AIRPORT`**, type the code, then reload the
+browser (`Ctrl+Shift+R`). Either way, every airport you set up is **saved**, so
+switching back to one you've used before is instant.
 
 ## 4. Turn on ATC audio
 

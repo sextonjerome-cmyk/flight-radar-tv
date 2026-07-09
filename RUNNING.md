@@ -18,11 +18,16 @@ It's a web app, so it installs everywhere from the same server — no app store.
 - The window title, icon, and app name are all **Flight Radar TV**.
 
 ## Move to another airport (great for sharing with a friend)
-**Easiest — double-click `SETUP-AIRPORT`.** It asks for your airport's 4-letter
-code (e.g. `KLAX`), then downloads and builds the whole display for it. When it
-finishes, just **hard-reload the browser** (`Ctrl+Shift+R`) — the server switches
-airports on its own. (If the server isn't running yet, double-click `START-RADAR`
-first.) That's the entire process — no editing files, no restart.
+**Easiest — right from the app (works on the TV):** open **CONTROLS → CHANGE
+AIRPORT**, type the 4-letter code (e.g. `KLAX`) and select **LOAD**. It downloads
+everything for that field, shows a progress log, and loads it automatically when
+done. On a TV remote, just type the code and press the keyboard's Enter — you don't
+need to reach the LOAD button.
+
+**Or from the computer — double-click `SETUP-AIRPORT`.** It asks for the code, then
+downloads and builds the whole display. When it finishes, **hard-reload the browser**
+(`Ctrl+Shift+R`) — the server switches airports on its own. (If the server isn't
+running yet, double-click `START-RADAR` first.)
 
 Prefer the command line? Same thing:
 ```
