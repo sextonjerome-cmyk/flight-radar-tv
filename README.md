@@ -1,10 +1,11 @@
 # Flight Radar TV
 
-A TV-sized flight radar for your living room. It shows **live aircraft** around your
-airport in a glass-cockpit (EFIS) style, with **live ATC radio**, weather, approaches,
-airspace, and a 3-D view. Runs in any web browser from a tiny program on your computer.
+A flight radar for your living room. It shows **live aircraft** around your airport in
+a glass-cockpit (EFIS) style, with **live ATC radio**, weather, approaches, airspace,
+and a 3-D view.
 
-**It works out of the box for Charleston, SC.**
+**Watch it on your computer *or* on your TV** — both run from one tiny program on your
+computer. **It works out of the box for Charleston, SC.**
 
 ---
 
@@ -15,8 +16,14 @@ Get it from [python.org](https://www.python.org/downloads/). During install, tic
 
 ## 2. Start it
 
-Double-click **`START-RADAR`**. Your browser opens the radar. Leave the little black
-window open while you watch — that's the server. Done.
+Double-click **`START-RADAR`**. Leave the little black window open while you watch —
+that's the server. Now open the radar on either screen (or both at once):
+
+- **On the computer:** it opens in your browser automatically. Done.
+- **On the TV:** keep the computer on, then on the TV open the network address the
+  server window prints (looks like `http://192.168.x.x:8478`) — in any TV browser, or
+  in the included **`FlightRadarTV.apk`** for Android/Google TV. (See "Watch it on a
+  TV" below.)
 
 ## 3. Use a different airport (optional)
 
@@ -41,11 +48,17 @@ Full example and details are in **`RUNNING.md`**. Charleston's audio already wor
 
 ---
 
-## On a TV
+## Watch it on a TV
 
-Point any browser on your TV at the network address the server window prints
-(`http://192.168.x.x:8478`), or install the included **`FlightRadarTV.apk`** on
-Android/Google TV. For a full-screen always-on display, see **`RUNNING.md`**.
+The TV shows whatever your computer is serving, so keep the computer on with
+**`START-RADAR`** running. Then, on the TV:
+
+- **Any TV web browser:** go to the `http://192.168.x.x:8478` address the server prints.
+- **Android / Google TV:** install the included **`FlightRadarTV.apk`** (sideload it,
+  e.g. with the "Downloader" app pointed at `http://192.168.x.x:8478/FlightRadarTV.apk`).
+  On first launch it asks for that same address.
+
+For a full-screen, always-on kiosk display, see **`RUNNING.md`**.
 
 ## Good to know
 
