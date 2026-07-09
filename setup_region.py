@@ -532,12 +532,15 @@ def overpass(query, timeout=180, cache=None):
              "https://overpass.kumi.systems/api/interpreter",
              "https://maps.mail.ru/osm/tools/overpass/api/interpreter")
     body = urllib.parse.urlencode({"data": query}).encode()
-    for attempt in range(6):
+    per_try = min(timeout, 35)                                   # don't let one slow
+    for attempt in range(6):                                     # mirror hang for minutes
         gap = time.time() - _last_overpass[0]                    # be polite: space calls
-        if gap < 8: time.sleep(8 - gap)
+        if gap < 5: time.sleep(5 - gap)
         host = hosts[attempt % len(hosts)]
+        name = host.split("/")[2]
+        print(f"    trying {name} (attempt {attempt+1}/6)…", flush=True)
         try:
-            d = http(host, data=body, timeout=timeout)
+            d = http(host, data=body, timeout=per_try)
             _last_overpass[0] = time.time()
             j = json.loads(d)
             if cf and j.get("elements"):
@@ -546,9 +549,12 @@ def overpass(query, timeout=180, cache=None):
             return j
         except Exception as e:
             _last_overpass[0] = time.time()
-            wait = 10 * (attempt + 1)
-            print(f"    {host.split('/')[2]} failed ({e}); retry in {wait}s")
+            reason = "rate-limited/busy" if "429" in str(e) else str(e)
+            wait = 6 * (attempt + 1)
+            print(f"      {name}: {reason}. waiting {wait}s…", flush=True)
             time.sleep(wait)
+    print("    OpenStreetMap is busy right now — skipping this layer for now.")
+    print("    Everything else is built; re-run later to add it (it will be quick).")
     return {"elements": []}
 
 def simplify_ring(pts, tol):

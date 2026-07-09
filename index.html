@@ -405,15 +405,19 @@ function renderMap(c, vh){
     const tl=prj(MAP.bbox[2],MAP.bbox[1]), br=prj(MAP.bbox[0],MAP.bbox[3]);
     c.imageSmoothingEnabled=true;
     c.drawImage(terrCvs, tl.x, tl.y, br.x-tl.x, br.y-tl.y);
-    // ocean: real shoreline, extended offshore past the data edge
-    const coast=MAP.coasts.reduce((a,b)=>b.length>a.length?b:a, MAP.coasts[0]);
-    const a=extendPt(coast,false), b=extendPt(coast,true), far=[CTR.lat-5,CTR.lon+6];
-    c.fillStyle=WATER; c.beginPath();
-    let q=prj(a[0],a[1]); c.moveTo(q.x,q.y);
-    for(const p of coast){ q=prj(p[0],p[1]); c.lineTo(q.x,q.y); }
-    for(const p of [b,far]){ q=prj(p[0],p[1]); c.lineTo(q.x,q.y); }
-    c.closePath(); c.fill();
+    // ocean: real shoreline, extended offshore past the data edge (coastal fields only —
+    // inland airports have no coastline, so MAP.coasts is empty and we skip the sea fill)
+    if(MAP.coasts && MAP.coasts.length){
+      const coast=MAP.coasts.reduce((a,b)=>b.length>a.length?b:a, MAP.coasts[0]);
+      const a=extendPt(coast,false), b=extendPt(coast,true), far=[CTR.lat-5,CTR.lon+6];
+      c.fillStyle=WATER; c.beginPath();
+      let q=prj(a[0],a[1]); c.moveTo(q.x,q.y);
+      for(const p of coast){ q=prj(p[0],p[1]); c.lineTo(q.x,q.y); }
+      for(const p of [b,far]){ q=prj(p[0],p[1]); c.lineTo(q.x,q.y); }
+      c.closePath(); c.fill();
+    }
     // detailed water polygons (fills tidal estuaries / wide rivers, not just open sea)
+    c.fillStyle=WATER;
     if(MAP.water) for(const poly of MAP.water){ path(c,poly); c.closePath(); c.fill(); }
     // islands (marsh-level land), lakes, rivers
     for(const poly of MAP.islands){ path(c,poly); c.closePath();
@@ -1431,13 +1435,15 @@ function paintWaterMask(cx,vh,ky){
   cx.setTransform(2,0,0,2*ky,0,0); cx.clearRect(0,0,CW,vh);
   cx.globalCompositeOperation='source-over'; cx.fillStyle='#fff';
   VH=vh;
-  const coast=MAP.coasts.reduce((a,b)=>b.length>a.length?b:a, MAP.coasts[0]);
-  const a=extendPt(coast,false), b=extendPt(coast,true), far=[CTR.lat-5,CTR.lon+6];
-  cx.beginPath();
-  let q=prj(a[0],a[1]); cx.moveTo(q.x,q.y);
-  for(const p of coast){ q=prj(p[0],p[1]); cx.lineTo(q.x,q.y); }
-  for(const p of [b,far]){ q=prj(p[0],p[1]); cx.lineTo(q.x,q.y); }
-  cx.closePath(); cx.fill();
+  if(MAP.coasts && MAP.coasts.length){                  // coastal fields only
+    const coast=MAP.coasts.reduce((a,b)=>b.length>a.length?b:a, MAP.coasts[0]);
+    const a=extendPt(coast,false), b=extendPt(coast,true), far=[CTR.lat-5,CTR.lon+6];
+    cx.beginPath();
+    let q=prj(a[0],a[1]); cx.moveTo(q.x,q.y);
+    for(const p of coast){ q=prj(p[0],p[1]); cx.lineTo(q.x,q.y); }
+    for(const p of [b,far]){ q=prj(p[0],p[1]); cx.lineTo(q.x,q.y); }
+    cx.closePath(); cx.fill();
+  }
   if(MAP.water) for(const poly of MAP.water){ path(cx,poly); cx.closePath(); cx.fill(); }
   for(const poly of MAP.lakes){ path(cx,poly); cx.closePath(); cx.fill(); }
   // rivers are intentionally excluded — no wave sparkle on narrow inland water
