@@ -9,8 +9,9 @@ mapdata/*
 regions/
 
 # ---- private / internal — never share ----
+# HANDOFF.md holds design notes + the owner's contact info; keep it local.
+# CLAUDE.md is now a public developer guide (no personal info) and IS shipped.
 HANDOFF.md
-CLAUDE.md
 config.js.charleston.bak
 *.bak
 
