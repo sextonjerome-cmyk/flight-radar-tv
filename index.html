@@ -665,6 +665,24 @@ function drawLabels3(fam){
     if(s.x<-80||s.x>CW+80||s.y<-30||s.y>CH+30) continue;
     txt(ctx, s0.t, s.x, s.y, '600 12px '+fam, 'rgba('+s0.col+',.95)','center');
   }
+  // waypoint / navaid idents — billboarded upright (the symbols are drawn skewed on
+  // the ground layer; their names would be unreadable there, so we place them here)
+  const onScr=s=>s.x>=-40&&s.x<=CW+40&&s.y>=-30&&s.y<=CH+30;
+  if(ovl.wpt && rangeNm<=50) for(const w of NAV.wpts){
+    const q=prj(w.lat,w.lon), s=isoP(q.x,q.y,0);
+    if(onScr(s)) txt(ctx, w.id, s.x+8, s.y-6, '10px '+fam, 'rgba('+GMN.wpt+',.9)');
+  }
+  if(ovl.nav){
+    for(const v of NAV.vors){
+      if(!v.cls || v.cls[0]!=='V') continue;
+      const q=prj(v.lat,v.lon), s=isoP(q.x,q.y,0);
+      if(onScr(s)) txt(ctx, v.id, s.x+12, s.y+4, '11px '+fam, 'rgb('+GMN.vor+')');
+    }
+    for(const n of NAV.ndbs){
+      const q=prj(n.lat,n.lon), s=isoP(q.x,q.y,0);
+      if(onScr(s)) txt(ctx, n.id, s.x+12, s.y+4, '11px '+fam, 'rgb('+GMN.ndb+')');
+    }
+  }
   VH=CH;
 }
 
