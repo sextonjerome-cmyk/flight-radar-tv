@@ -809,7 +809,7 @@ async function radarRefresh(){
                         {signal:sig(12000)});
     const j=await r.json();
     const fr=j.radar&&j.radar.past&&j.radar.past[j.radar.past.length-1];
-    if(!fr) return;
+    if(!fr){ if(!wxTiles.length) setTimeout(radarRefresh,30000); return; }
     wxTime=fr.time;
     // radar tile box around the CURRENT home field (was hardcoded to Charleston, so
     // any other airport got no radar — the tiles landed off-screen)
@@ -828,7 +828,7 @@ async function radarRefresh(){
       tiles.push({img, W:tx/n*360-180, E:(tx+1)/n*360-180, N:inv(ty), S:inv(ty+1)});
     }
     wxTiles=tiles;
-  }catch(e){}
+  }catch(e){ if(!wxTiles.length) setTimeout(radarRefresh,30000); }  // retry soon on a failed first load
 }
 setInterval(radarRefresh,5*60*1000); radarRefresh();
 function drawWeather(c,fam){
@@ -847,7 +847,7 @@ function drawWeather(c,fam){
 }
 
 // live SIGMET / AIRMET / convective shapes (aviationweather.gov)
-let SIGS=[];
+let SIGS=[], sigLoaded=false;
 let bmT=null;
 function scheduleBuild(){ clearTimeout(bmT); bmT=setTimeout(buildMap,300); }
 async function sigRefresh(){
@@ -869,8 +869,8 @@ async function sigRefresh(){
       else if(hz.includes('ICE')){col='120,170,255';name='AIRMET ZULU';}
       out.push({t:(name+(hz&&!name.includes(hz)?' · '+hz:'')), col, pts});
     }
-    SIGS=out; scheduleBuild();
-  }catch(e){}
+    SIGS=out; sigLoaded=true; scheduleBuild();
+  }catch(e){ if(!sigLoaded) setTimeout(sigRefresh,30000); }  // retry soon on a failed first load
 }
 setInterval(sigRefresh,10*60*1000); sigRefresh();
 function drawSigmets(c,fam){
