@@ -48,15 +48,48 @@ Full example and details are in **`RUNNING.md`**. Charleston's audio already wor
 
 ---
 
-## Watch it on a TV
+## Watch it on a TV — step by step
 
-The TV shows whatever your computer is serving, so keep the computer on with
-**`START-RADAR`** running. Then, on the TV:
+The TV is just a screen showing what your computer serves, so a little prep first:
 
-- **Any TV web browser:** go to the `http://192.168.x.x:8478` address the server prints.
-- **Android / Google TV:** install the included **`FlightRadarTV.apk`** (sideload it,
-  e.g. with the "Downloader" app pointed at `http://192.168.x.x:8478/FlightRadarTV.apk`).
-  On first launch it asks for that same address.
+**On the computer (once):**
+1. Double-click **`START-RADAR`** and leave its black window open.
+2. It prints a **network address** that looks like `http://192.168.1.50:8478` — write
+   down your exact numbers (yours will differ). This is what the TV connects to.
+3. Make sure the **TV is on the same Wi-Fi** as the computer.
+
+Then pick whichever fits your TV:
+
+### Option 1 — Any TV with a web browser (easiest)
+Open the TV's web browser and go to the `http://192.168.x.x:8478` address from step 2.
+That's it. (Bookmark it so it's one click next time.)
+
+### Option 2 — The app on Android TV / Google TV / Fire TV (Fire Stick)
+This installs a clean full-screen app. It takes a few minutes the first time:
+
+1. **Install "Downloader."** On the TV, open its app store, search **Downloader**
+   (orange icon, by AFTVnews), and install it. *(This is the tool that fetches the app.)*
+2. **Let Downloader install apps.** Go to the TV's **Settings → Apps → Security &
+   restrictions → Unknown sources** and turn it **ON for Downloader**. *(Some TVs skip
+   this and just ask you to "Allow" during step 4 instead.)*
+3. **Open Downloader** and, in its address box, type this **exactly**, using your own
+   numbers from step 2:
+   ```
+   http://192.168.x.x:8478/FlightRadarTV.apk
+   ```
+   Press **Go**. *(Use this full link — the app file is tiny and downloads in a second.)*
+4. When it finishes, choose **Install**, then **Open**. *(Downloader will offer to
+   delete the downloaded file afterward — say yes, you don't need it.)*
+5. On first launch it shows a **"Radar server address"** box, already filled in with
+   `http://192.168.x.x:8478`. Press **Back once** on the remote to hide the keyboard,
+   then select **Connect**. The radar fills the screen. 🎉
+
+**Handy to know:**
+- The **computer must stay on and awake** whenever you watch — it feeds the TV.
+- **Black screen?** Press **Back** on the remote to bring up the address box and
+  re-enter `http://192.168.x.x:8478`. Press **MENU** anytime to change the address.
+- **Switch airports from the couch:** open **CONTROLS → CHANGE AIRPORT** and type a
+  4-letter code.
 
 For a full-screen, always-on kiosk display, see **`RUNNING.md`**.
 
