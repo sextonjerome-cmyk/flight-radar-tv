@@ -177,8 +177,14 @@
   #atcExisting .row .rm{cursor:pointer;color:#C77;border:1px solid #5a3a3a;border-radius:6px;
     padding:2px 9px;font-size:13px;}
   #atcAdd{font-size:12px;padding:4px 10px;margin-top:4px;display:inline-block;}
+  /* --- plain-English button tips (toggled by the BUTTON TIPS chip) --- */
+  #tip{position:fixed;z-index:200;display:none;max-width:290px;
+    background:#0b1622;border:1px solid #3A4A57;border-radius:8px;padding:9px 12px;
+    color:#CBD4DC;font-size:14px;line-height:1.42;box-shadow:0 8px 26px rgba(0,0,0,.55);
+    pointer-events:none;}
 </style>
 
+<div id="tip"></div>
 <div id="stage">
   <div id="aptModal" role="dialog" aria-modal="true">
     <div id="aptCard">
@@ -280,6 +286,10 @@
         <span class="lbl">FIELD</span>
         <span class="rchip" id="chgAirport" tabindex="0"
               title="Download a different airport">CHANGE AIRPORT</span>
+      </div>
+      <div class="ctlRow">
+        <span class="lbl">HELP</span>
+        <span class="rchip" id="tipsTog" tabindex="0">❔ BUTTON TIPS</span>
       </div>
       </div>
     </div>
@@ -1970,7 +1980,7 @@ const CHANNELS=(CONFIG.atcChannels||[])
 // build the channel chips from config (DOM order must match CHANNELS order,
 // since the click handlers below index into CHANNELS by chip position)
 document.getElementById('chans').innerHTML = CHANNELS.map((c,i)=>
-  '<div class="chan" tabindex="0"><span class="pr">'+(i+1)+'</span>'+
+  '<div class="chan" tabindex="0" data-tip="Tap to listen to this radio channel."><span class="pr">'+(i+1)+'</span>'+
   '<div class="n">'+c.label+'</div><div class="f">'+(c.sub||'')+'</div></div>').join('');
 let scanMode=false, manualCh=null, actx=null, masterGain=null, activeCh=null, atcOn=true;
 for(const ch of CHANNELS){
@@ -2111,6 +2121,74 @@ document.getElementById('scanChip').addEventListener('click',()=>{
 });
 const volEl=document.getElementById('vol');
 volEl.addEventListener('input',()=>{ if(masterGain) masterGain.gain.value=volEl.value/100; });
+
+/* ============ plain-English button tips (toggled by the BUTTON TIPS chip) ============ */
+const TIPS={
+  b:{ efis:'The clean cockpit-style map — dark, with shaded land and water.',
+      sat:'Real satellite photos of the ground, with place names.',
+      dark:'A plain dark map with no terrain shading.' },
+  o:{ asp:'Outlines of controlled airspace — the invisible boxes around busy airports.',
+      sua:'Special-use airspace: military zones and restricted / no-fly areas.',
+      ils:'Instrument landing paths that guide planes down to a runway in bad weather.',
+      rnav:'GPS-based approach paths into a runway.',
+      wpt:'Named navigation points in the sky that pilots fly between.',
+      nav:'Ground radio beacons (VOR / NDB) that planes navigate from.',
+      awy:'Airways — the marked "highways in the sky" that planes follow.',
+      wx:'Live weather / rain radar painted on the map.',
+      sig:'Live warnings about rough-weather areas (turbulence, ice, storms).',
+      wave:'A shimmering sun-glint animation on the water.' },
+  x:{ auto:'Automatically zooms to keep incoming planes in view.',
+      alt:'Show only lower traffic; hide high jets just passing overhead.' },
+  view:{ '2d':'Flat, top-down radar view.',
+         '3d':'Tilted 3-D view — planes float at their real altitude.' },
+  mix:{ sec:'Fade an official VFR pilot map (roads, towns, airspace) over the top.',
+        ifr:'Fade an official instrument-navigation chart over the top.' },
+  id:{ chgAirport:'Download and switch the whole display to a different airport.',
+       tipsTog:'Show a short plain-English tip when you point at a button.',
+       homeReset:'Recenter the map back on your home airport.',
+       atcPower:'Turn the live control-tower radio on or off.',
+       scanChip:'Listen to all channels at once — you hear whoever is talking.',
+       atcAdd:'Add another radio feed (like Approach or Center) by its name.',
+       vol:'Radio volume.' }
+};
+function applyTips(){
+  document.querySelectorAll('.rchip, #vol').forEach(el=>{
+    const d=el.dataset||{}; let t;
+    if(d.b) t=TIPS.b[d.b];
+    else if(d.o) t=TIPS.o[d.o];
+    else if(d.r!==undefined) t='How far the map reaches out from the center, in miles.';
+    else if(d.x) t=TIPS.x[d.x];
+    else if(d.view) t=TIPS.view[d.view];
+    else if(d.mix) t=TIPS.mix[d.mix];
+    else if(d.mixd!==undefined||d.mixu!==undefined) t='Make that chart fainter or stronger.';
+    else if(el.id&&TIPS.id[el.id]) t=TIPS.id[el.id];
+    if(t) el.setAttribute('data-tip',t);
+  });
+}
+applyTips();
+let tipsOn=false;
+const tipBox=document.getElementById('tip');
+function showTip(el){
+  if(!tipsOn) return;
+  const t=el.getAttribute('data-tip'); if(!t){ tipBox.style.display='none'; return; }
+  tipBox.textContent=t; tipBox.style.display='block';
+  const r=el.getBoundingClientRect(), tw=tipBox.offsetWidth, th=tipBox.offsetHeight;
+  let x=r.left, y=r.bottom+8;
+  if(x+tw>innerWidth-8) x=innerWidth-8-tw;
+  if(y+th>innerHeight-8) y=r.top-8-th;                 // flip above if no room below
+  tipBox.style.left=Math.max(8,x)+'px'; tipBox.style.top=Math.max(8,y)+'px';
+}
+function hideTip(){ tipBox.style.display='none'; }
+document.addEventListener('pointerover',e=>{ const el=e.target.closest&&e.target.closest('[data-tip]'); if(el) showTip(el); });
+document.addEventListener('pointerout', e=>{ if(e.target.closest&&e.target.closest('[data-tip]')) hideTip(); });
+document.addEventListener('focusin',   e=>{ const el=e.target.closest&&e.target.closest('[data-tip]'); if(el) showTip(el); });
+document.addEventListener('focusout',  hideTip);
+chipKeys(document.getElementById('tipsTog'),()=>{
+  tipsOn=!tipsOn;
+  const tg=document.getElementById('tipsTog');
+  tg.classList.toggle('on',tipsOn);
+  if(tipsOn) showTip(tg); else hideTip();               // instant feedback
+});
 
 /* ================= audio meter (fake) ================= */
 const meter=document.getElementById('meter');
