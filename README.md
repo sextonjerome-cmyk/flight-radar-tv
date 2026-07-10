@@ -60,6 +60,28 @@ The TV shows whatever your computer is serving, so keep the computer on with
 
 For a full-screen, always-on kiosk display, see **`RUNNING.md`**.
 
+## Using it without your own computer (optional)
+
+The app — on a computer, TV, Fire Stick, or Google TV — is only the **screen**.
+The `START-RADAR` program is the **engine** that pulls the live planes, weather, and
+ATC and feeds it to the screen. So a computer running that engine has to be **on and
+awake** whenever you watch, and the TV has to reach it over the network.
+
+To watch on **any TV, on any network, with no computer of yours running**, put that
+same engine on an **always-on machine** and point the app at it instead:
+
+- **A small cloud server** (~$5/month) — works from anywhere, nothing needed at home.
+- **A mini-PC or Raspberry Pi** left on at home — free-ish, works on your home wifi.
+
+Then in the TV app just enter that machine's address (instead of your computer's).
+Everything keeps working — including **CHANGE AIRPORT** — because the engine still does
+the heavy lifting; only its location moves. No app changes are needed; the app already
+lets you type in whatever address the engine is at.
+
+**Keep it private.** LiveATC audio is licensed for personal listening, so if the engine
+is reachable from the internet, don't share the address publicly — put it behind a
+password. (That password gate isn't built in yet; add it when you host it online.)
+
 ## Good to know
 
 - **Not for navigation** — it's a hobby display, not a certified aviation tool.
