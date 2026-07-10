@@ -811,7 +811,11 @@ async function radarRefresh(){
     const fr=j.radar&&j.radar.past&&j.radar.past[j.radar.past.length-1];
     if(!fr) return;
     wxTime=fr.time;
-    const z=7, n=2**z, S=31.4, W=-82.2, N=34.3, E=-78.2;  // z7 = RainViewer free-tier max
+    // radar tile box around the CURRENT home field (was hardcoded to Charleston, so
+    // any other airport got no radar — the tiles landed off-screen)
+    const z=7, n=2**z;                                    // z7 = RainViewer free-tier max
+    const dlat=1.8, dlon=1.8/Math.cos(HOME.lat*Math.PI/180);
+    const S=HOME.lat-dlat, N=HOME.lat+dlat, W=HOME.lon-dlon, E=HOME.lon+dlon;
     const my=la=>{const q=la*Math.PI/180;return (1-Math.asinh(Math.tan(q))/Math.PI)/2;};
     const inv=y=>Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*180/Math.PI;
     const tx0=Math.floor((W+180)/360*n), tx1=Math.floor((E+180)/360*n);
