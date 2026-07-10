@@ -177,6 +177,9 @@
   #atcExisting .row .rm{cursor:pointer;color:#C77;border:1px solid #5a3a3a;border-radius:6px;
     padding:2px 9px;font-size:13px;}
   #atcAdd{font-size:12px;padding:4px 10px;margin-top:4px;display:inline-block;}
+  /* small round "?" help toggle, sits beside CHANGE AIRPORT */
+  #tipsTog{width:30px;padding:5px 0;text-align:center;font-weight:700;font-size:15px;
+    border-radius:50%;flex:none;}
   /* --- plain-English button tips (toggled by the BUTTON TIPS chip) --- */
   #tip{position:fixed;z-index:200;display:none;max-width:290px;
     background:#0b1622;border:1px solid #3A4A57;border-radius:8px;padding:9px 12px;
@@ -286,10 +289,8 @@
         <span class="lbl">FIELD</span>
         <span class="rchip" id="chgAirport" tabindex="0"
               title="Download a different airport">CHANGE AIRPORT</span>
-      </div>
-      <div class="ctlRow">
-        <span class="lbl">HELP</span>
-        <span class="rchip" id="tipsTog" tabindex="0">❔ BUTTON TIPS</span>
+        <span class="rchip" id="tipsTog" tabindex="0" aria-label="Explain the buttons"
+              title="Explain what the buttons do">?</span>
       </div>
       </div>
     </div>
