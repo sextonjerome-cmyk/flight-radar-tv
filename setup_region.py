@@ -813,6 +813,11 @@ def build_map(cfg, args):
     lk.sort(key=lambda t: -t[0])
     lakes_s = [p for _, p in lk[:15]]
     print(f"    {len(rivers_s)} rivers, {len(lakes_s)} lakes")
+    if not (coasts_s or water_s or lakes_s or rivers_s):
+        _id = cfg["center"]["id"]
+        print("    ⚠ no water features came back — OpenStreetMap was likely busy/throttled.")
+        print("      If this airport should have coastline, lakes or rivers, just run it")
+        print(f"      again in a minute:  python setup_region.py {_id} --rebuild")
 
     print("  terrain elevation (OpenTopoData NED)…", flush=True)
     elev = fetch_elev(S, W, N, E)
