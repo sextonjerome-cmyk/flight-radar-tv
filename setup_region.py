@@ -589,7 +589,7 @@ def overpass(query, timeout=180, cache=None):
             pass
     hosts = ("https://overpass-api.de/api/interpreter",
              "https://overpass.kumi.systems/api/interpreter",
-             "https://maps.mail.ru/osm/tools/overpass/api/interpreter")
+             "https://overpass.osm.ch/api/interpreter")
     body = urllib.parse.urlencode({"data": query}).encode()
     per_try = min(timeout, 35)                                   # don't let one slow
     for attempt in range(6):                                     # mirror hang for minutes
