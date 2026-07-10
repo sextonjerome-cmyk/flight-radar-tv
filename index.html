@@ -1975,7 +1975,12 @@ document.getElementById('chans').innerHTML = CHANNELS.map((c,i)=>
 let scanMode=false, manualCh=null, actx=null, masterGain=null, activeCh=null, atcOn=true;
 for(const ch of CHANNELS){
   ch.el=new Audio(); ch.el.preload='none';
-  ch.hotAt=0; ch.level=0;
+  ch.hotAt=0; ch.level=0; ch.tries=0;
+  // the stream actually started playing → clear the retry counter / any error state
+  ch.el.addEventListener('playing',()=>{ ch.tries=0;
+    if(!scanMode && manualCh===ch) setOnAir('on','ON AIR · '+ch.label); });
+  // a genuine media failure (feed dropped mid-stream) → quietly reconnect a few times
+  ch.el.addEventListener('error',()=>{ if(manualCh===ch||(scanMode&&atcOn)) retryCh(ch); });
 }
 function setOnAir(state,txtv){
   const el=document.getElementById('onair');
@@ -2000,7 +2005,24 @@ function ensureGraph(){
 function chPlay(ch){
   if(!ch.el.src) ch.el.src='/atc/'+ch.mt;
   const p=ch.el.play();
-  if(p) p.catch(()=>setOnAir('err',ch.label+' UNAVAILABLE'));
+  if(p) p.then(()=>{ ch.tries=0; }).catch(err=>{
+    const n=err&&err.name;
+    if(n==='AbortError') return;                          // interrupted by another tap
+    if(n==='NotAllowedError'){ if(actx) actx.resume(); return; }  // browser wants a gesture
+    retryCh(ch);                                          // real failure → reconnect, then flag
+  });
+}
+// LiveATC feeds occasionally drop and come back — reconnect quietly a few times
+// before declaring a channel unavailable, so a brief blip isn't reported as dead.
+function retryCh(ch){
+  ch.tries=(ch.tries||0)+1;
+  if(ch.tries<=3){
+    setTimeout(()=>{ if(manualCh===ch||(scanMode&&atcOn)){
+      ch.el.src='/atc/'+ch.mt+'?r='+Date.now(); chPlay(ch);
+    } }, 1200*ch.tries);
+  }else if(!scanMode && manualCh===ch){
+    setOnAir('err', ch.label+' UNAVAILABLE');
+  }
 }
 function chipRefresh(){
   document.querySelectorAll('.chan').forEach((c,i)=>{
@@ -2041,12 +2063,12 @@ document.querySelectorAll('.chan').forEach((c,i)=>{
   const go=()=>{
     atcWake(); ensureGraph(); actx.resume();
     if(scanMode){                              // in scan: chips arm / disarm feeds
-      if(ch.el.paused) chPlay(ch);
+      if(ch.el.paused){ ch.tries=0; chPlay(ch); }
       else ch.el.pause();
     }else if(manualCh===ch){
       manualCh=null; ch.el.pause(); setOnAir('idle','TAP A CHANNEL');
     }else{
-      manualCh=ch;
+      manualCh=ch; ch.tries=0;
       for(const o of CHANNELS) if(o!==ch) o.el.pause();
       chPlay(ch); setOnAir('on','ON AIR · '+ch.label);
     }
