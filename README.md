@@ -82,6 +82,69 @@ lets you type in whatever address the engine is at.
 is reachable from the internet, don't share the address publicly — put it behind a
 password. (That password gate isn't built in yet; add it when you host it online.)
 
+## Controls — what every button does
+
+The buttons live in the **CONTROLS** box (top-left of the screen) and the **info panel**
+(right side). Click the **CONTROLS** header to collapse or expand the box.
+
+### MAP — base map style
+- **EFIS** — the glass-cockpit look: dark map, terrain shading, water. *(default)*
+- **SAT HYB** — satellite imagery with labels.
+- **DARK** — a plain dark map.
+
+### SHOW — map overlays (each toggles on/off)
+- **ASP** — controlled airspace outlines (Class B / C / D).
+- **SUA** — Special Use Airspace (military zones, restricted / prohibited areas).
+- **ILS** — ILS / localizer approaches (the "feather" + glidepath into the runway).
+- **RNAV** — RNAV / GPS approaches.
+- **WPT** — waypoints / intersections.
+- **NAV** — navaids (VORs and NDBs).
+- **AWY** — airways (the "highways in the sky").
+
+### WX — weather
+- **DOPPLER** — live weather radar (NEXRAD) painted on the map.
+- **SIG/AIRMET** — live SIGMETs & AIRMETs (hazard advisory areas).
+
+### RANGE — how far the map reaches
+- **10 / 15 / 25 / 50** — map radius in nautical miles.
+- **AUTO** — auto-zooms to follow inbound traffic.
+- **≤180** — show only traffic at/below 18,000 ft (hides high jets passing overhead).
+
+### CHART — fade FAA paper charts over the map
+- **SECTIONAL** — the VFR sectional chart; **–/+** step its opacity by 10%.
+- **IFR LOW** — the IFR low-altitude enroute chart; **–/+** step its opacity.
+
+### VIEW — 2-D or 3-D
+- **2D** — flat top-down radar.
+- **3D** — tilted, Tacview-style view: aircraft float at altitude, with glidepaths and
+  3-D airspace volumes.
+- **WAVES** — animate a shimmering sun-glint on the water (EFIS map).
+
+### FIELD
+- **CHANGE AIRPORT** — type a 4-letter code to download and switch to a new airport.
+
+### Top-left
+- **⌂ (home)** — recenter on your home airport (appears once you've clicked another one).
+
+### LIVE ATC (info panel)
+- **ATC** — turn the radio on / off.
+- **SCAN** — monitor all channels at once; whoever is transmitting on the highest-priority
+  channel plays, the rest stay muted (like a real cockpit audio panel).
+- **Channel buttons** (e.g. `CHS`, `SAV APP`) — tap one to listen to that feed.
+- **＋ ADD ATC CHANNEL** — add an Approach/Center feed by name (checked live before adding).
+- **VOL** — volume slider.
+
+### Clicking around
+- **Click a plane** — its photo, type, route, altitude, speed, and heading.
+- **Click an airport** — recenters on it and shows its tower/CTAF frequency + weather.
+
+### What the colors mean
+- **Aircraft:** royal blue = general aviation (N-number); airliners by altitude —
+  **green** below 10,000 ft, **cyan** 10–25,000 ft, **magenta** above 25,000 ft;
+  **amber = the plane you selected**.
+- **Navigation** (Garmin convention): mint green = ILS/LOC, violet = RNAV/GPS & T-routes,
+  blue = VORs & Victor airways, cyan = waypoints, tan = NDBs.
+
 ## Good to know
 
 - **Not for navigation** — it's a hobby display, not a certified aviation tool.
