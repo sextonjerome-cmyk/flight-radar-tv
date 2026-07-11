@@ -185,6 +185,23 @@
     background:#0b1622;border:1px solid #3A4A57;border-radius:8px;padding:9px 12px;
     color:#CBD4DC;font-size:14px;line-height:1.42;box-shadow:0 8px 26px rgba(0,0,0,.55);
     pointer-events:none;}
+  /* --- "PFD VIEW" button in the info panel --- */
+  .pfdRow{margin:12px 0 2px;}
+  #pfdBtn{width:100%;box-sizing:border-box;text-align:center;font-size:14px;
+    padding:9px;letter-spacing:.1em;background:#12202e;border-color:#2f4a63;color:#CDE0F2;}
+  #pfdBtn.dim{opacity:.4;pointer-events:none;}
+  /* --- G1000-style PFD overlay --- */
+  #pfdModal{position:fixed;inset:0;z-index:70;display:none;
+    background:rgba(2,6,10,.93);align-items:center;justify-content:center;}
+  #pfdModal.show{display:flex;}
+  #pfdCard{width:min(1040px,96vw);background:#05090e;border:1px solid #263341;
+    border-radius:12px;padding:12px 12px 10px;box-shadow:0 24px 70px rgba(0,0,0,.7);}
+  #pfdBar{display:flex;align-items:center;gap:12px;margin:2px 4px 10px;}
+  #pfdTitle{font-size:21px;font-weight:600;color:#E4EBF2;letter-spacing:.05em;flex:1;}
+  #pfdTitle small{color:#7A8792;font-weight:400;font-size:15px;letter-spacing:.02em;}
+  #pfdClose{font-size:15px;}
+  #pfdCanvas{display:block;width:100%;height:auto;border-radius:8px;background:#000;}
+  #pfdFoot{margin:9px 6px 2px;font-size:12px;line-height:1.4;color:#67737e;letter-spacing:.02em;}
 </style>
 
 <div id="tip"></div>
@@ -222,6 +239,18 @@
         <span class="rchip" id="atcTest" tabindex="0">TEST &amp; ADD</span>
         <span class="rchip" id="atcCancel" tabindex="0">CLOSE</span>
       </div>
+    </div>
+  </div>
+  <div id="pfdModal" role="dialog" aria-modal="true" aria-label="Primary flight display">
+    <div id="pfdCard">
+      <div id="pfdBar">
+        <span id="pfdTitle">PFD</span>
+        <span class="rchip" id="pfdClose" tabindex="0">✕ CLOSE</span>
+      </div>
+      <canvas id="pfdCanvas" width="1400" height="1008"></canvas>
+      <div id="pfdFoot">First-person view flown along the aircraft's ADS-B track &amp; flight
+        path. Attitude is synthetic (ADS-B carries no attitude); speed is GROUND speed; the
+        runway ahead is highlighted in yellow. For display only — not for navigation.</div>
     </div>
   </div>
   <div id="radarWrap">
@@ -286,6 +315,12 @@
         <span class="rchip" data-o="wave" tabindex="0" title="Animated water (EFIS)">WAVES</span>
       </div>
       <div class="ctlRow">
+        <span class="lbl">TRAIL</span>
+        <span class="rchip" data-trd tabindex="0" aria-label="Less trail time">–</span>
+        <span class="rchip" data-tru tabindex="0" aria-label="More trail time">+</span>
+        <span class="lbl" style="width:auto" id="trMinV">3 MIN</span>
+      </div>
+      <div class="ctlRow">
         <span class="lbl">FIELD</span>
         <span class="rchip" id="chgAirport" tabindex="0"
               title="Download a different airport">CHANGE AIRPORT</span>
@@ -334,6 +369,11 @@
       <div class="cell"><div class="k">SPEED</div><div class="v" id="pSpd">—</div></div>
       <div class="cell"><div class="k">HDG</div><div class="v" id="pHdg">—</div></div>
       <div class="cell"><div class="k">DIST</div><div class="v" id="pDist">—</div></div>
+    </div>
+
+    <div class="pfdRow">
+      <span class="rchip dim" id="pfdBtn" tabindex="0"
+            title="Fly along inside the selected aircraft — first-person HUD view">▣ HUD VIEW</span>
     </div>
 
     <div class="divider"></div>
@@ -414,6 +454,8 @@ let metars={}, curApt=HOME.id, atisTxt=null, rwInUse='', curComm='', curName='';
 // layout (EFIS / SAT hybrid / DARK) + independent chart mix sliders over it
 let base='efis', view3d=false;
 let altFilter=false, autoRange=false;
+let trailMin=3;                               // minutes of trail to keep/draw; 0 = off. TRAIL –/+ set it.
+const TRAIL_CAP=900;                           // hard point cap (memory guard)
 const mix={sec:0,ifr:0};                      // TV default: clean EFIS, no chart wash
 const ovl={asp:true,sua:false,ils:true,rnav:true,wpt:false,nav:false,awy:false,
            wx:true,sig:true,wave:false};
@@ -431,9 +473,13 @@ if(CHARTS)for(const b in CHARTS)for(const v in CHARTS[b]){
 }
 
 const LAND='#1A2312', WATER='#071626', MAPLINE='#56616E';
-// terrain elevation ramp [m, r, g, b] — olive family, brighter = higher ground
+// Hypsometric elevation ramp [m, r, g, b]. Low ground keeps the original Charleston
+// olive tones (unchanged ≤100 m); above that it climbs through khaki → light brown →
+// pale tan for mountains, so high-terrain airports (e.g. Salt Lake City) read as relief.
 const RAMP=[[0,20,27,16],[1,22,30,17],[6,26,35,18],[15,32,42,21],
-            [30,38,49,24],[60,44,56,28],[100,50,63,31]];
+            [30,38,49,24],[60,44,56,28],[100,50,63,31],
+            [300,72,74,44],[600,96,90,56],[1000,120,102,66],
+            [1600,146,120,84],[2300,170,144,110],[3200,196,176,150],[4300,216,204,188]];
 function rampRGB(e){
   for(let i=0;i<RAMP.length-1;i++){
     const[e0,r0,g0,b0]=RAMP[i], [e1,r1,g1,b1]=RAMP[i+1];
@@ -442,16 +488,32 @@ function rampRGB(e){
   }
   const L=RAMP[RAMP.length-1]; return [L[1],L[2],L[3]];
 }
-// terrain underlay: tiny canvas from the elevation grid, upscaled with smoothing
+// terrain underlay: tiny canvas from the elevation grid, upscaled with smoothing.
+// Adds NW-lit hillshading so ridges & valleys show; flat ground is left unshaded
+// (relief is measured against the flat baseline) so low fields look unchanged.
 const terrCvs=document.createElement('canvas');
 function buildTerrain(){
-  const g=MAP.elev, rows=g.rows, cols=g.cols;
+  const g=MAP.elev, rows=g.rows, cols=g.cols, M=g.m;
   terrCvs.width=cols; terrCvs.height=rows;
   const tc=terrCvs.getContext('2d'), im=tc.createImageData(cols,rows);
+  const dy=(g.n-g.s)*111320/(rows-1);                      // metres per grid row
+  const dx=(g.e-g.w)*111320*Math.cos((g.n+g.s)/2*Math.PI/180)/(cols-1);
+  const ZEN=50*Math.PI/180, AZ=315*Math.PI/180, EX=2.4;    // sun zenith/az, vert. exaggeration
+  const flat=Math.cos(ZEN);
+  const at=(r,c)=>M[Math.max(0,Math.min(rows-1,r))*cols+Math.max(0,Math.min(cols-1,c))];
   for(let r=0;r<rows;r++)for(let cc=0;cc<cols;cc++){
-    const [R,G,B]=rampRGB(g.m[r*cols+cc]);
+    let [R,G,B]=rampRGB(M[r*cols+cc]);
+    // hillshade from local slope (grid row 0 = south, so +r = north)
+    const dzdx=(at(r,cc+1)-at(r,cc-1))/(2*dx);
+    const dzdy=(at(r+1,cc)-at(r-1,cc))/(2*dy);
+    const slope=Math.atan(EX*Math.hypot(dzdx,dzdy));
+    const aspect=Math.atan2(dzdy,-dzdx);
+    const hs=Math.cos(ZEN)*Math.cos(slope)+Math.sin(ZEN)*Math.sin(slope)*Math.cos(AZ-aspect);
+    const mult=Math.max(0.5,Math.min(1.7,1+1.35*(hs-flat)));  // 1.0 on flat ground
+    R*=mult; G*=mult; B*=mult;
     const i=(((rows-1-r)*cols)+cc)*4;         // grid row 0 = south → bottom of image
-    im.data[i]=R; im.data[i+1]=G; im.data[i+2]=B;
+    im.data[i]=Math.max(0,Math.min(255,R)); im.data[i+1]=Math.max(0,Math.min(255,G));
+    im.data[i+2]=Math.max(0,Math.min(255,B));
     const edge=Math.min(r,rows-1-r,cc,cols-1-cc);   // fade at data edge
     im.data[i+3]=Math.round(255*Math.min(1,.2*edge));
   }
@@ -750,12 +812,12 @@ function drawAC3(){
     const sel=(a===selected);
     const col=sel?'#FFB02E':acColor(a);
     // 3D flight trail (each point at its recorded altitude)
-    ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.lineJoin='round';
+    ctx.strokeStyle=col; ctx.lineWidth=sel?2.4:1.5; ctx.lineJoin='round';
     for(let i=1;i<a.trail.length;i++){
       const t0=a.trail[i-1], t1=a.trail[i];
       const q0=prj(t0.lat,t0.lon), q1=prj(t1.lat,t1.lon);
       const i0=isoP(q0.x,q0.y,t0.alt), i1=isoP(q1.x,q1.y,t1.alt);
-      ctx.globalAlpha=(i/a.trail.length)*.5;
+      ctx.globalAlpha=(i/a.trail.length)*(sel?0.9:.5);
       ctx.beginPath(); ctx.moveTo(i0.x,i0.y); ctx.lineTo(i1.x,i1.y); ctx.stroke();
     }
     ctx.globalAlpha=1;
@@ -1163,11 +1225,17 @@ function ingest(list){
     a.lat=t.lat; a.lon=t.lon;
     a.gnd=(t.alt_baro==='ground');                         // gotcha: string "ground"
     a.alt=a.gnd?0:(typeof t.alt_baro==='number'?t.alt_baro:(t.alt_geom||0));
+    // rate of turn (deg/s) between polls — drives the PFD's synthetic bank
+    if(t.track!=null){
+      if(a.trkAt){ const dts=(now-a.trkAt)/1000;
+        if(dts>0.4 && dts<30){ let dd=t.track-a.trk; if(dd>180)dd-=360; if(dd<-180)dd+=360;
+          const inst=dd/dts; a.trkRate=(a.trkRate==null?inst:a.trkRate*0.5+inst*0.5); } }
+      a.trkAt=now;
+    }
     a.gs=t.gs||0; a.trk=(t.track!=null?t.track:a.trk);
     a.vr=t.baro_rate!=null?t.baro_rate:(t.geom_rate||0);
     a.seenAt=now;
-    a.trail.push({lat:a.lat,lon:a.lon,alt:a.alt});
-    if(a.trail.length>40)a.trail.shift();
+    if(trailMin>0) pushTrail(a,now);
     if(!a.rte && a.cs && /^[A-Z]{3}\d/.test(a.cs)) fetchRoute(a);
   }
   for(let i=AC.length-1;i>=0;i--){                          // expire stale targets
@@ -1434,15 +1502,18 @@ function drawAC(){
     a.sx=p.x; a.sy=p.y;
     const sel=(a===selected);
     const col= sel ? '#FFB02E' : acColor(a);
-    // comet trail
-    for(let i=0;i<a.trail.length;i++){
-      const t=prj(a.trail[i].lat,a.trail[i].lon);
-      const f=(i+1)/a.trail.length;
-      ctx.globalAlpha=f*0.34; ctx.fillStyle=col;
-      const s=1+f*1.6;
-      ctx.fillRect(t.x-s/2,t.y-s/2,s,s);
+    // fading trail (a connected line that brightens toward the aircraft)
+    if(a.trail.length>1){
+      ctx.strokeStyle=col; ctx.lineJoin='round'; ctx.lineCap='round';
+      ctx.lineWidth= sel?2.6:1.7;
+      for(let i=1;i<a.trail.length;i++){
+        const p0=prj(a.trail[i-1].lat,a.trail[i-1].lon);
+        const p1=prj(a.trail[i].lat,a.trail[i].lon);
+        ctx.globalAlpha=(i/a.trail.length)*(sel?0.9:0.55);
+        ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+      }
+      ctx.globalAlpha=1;
     }
-    ctx.globalAlpha=1;
     // velocity vector: ~60 s of flight, capped short (user dislikes long vectors)
     const vlen=Math.min(a.gs/60*pxPerNm/60*60, 34);
     const r=a.trk*Math.PI/180;
@@ -1484,11 +1555,17 @@ function step(dt){
     a.alt=Math.max(0,a.alt+a.vr*dt/60);
   }
 }
+// append a timestamped trail point and drop anything older than the chosen minutes
+function pushTrail(a,now){
+  a.trail.push({lat:a.lat,lon:a.lon,alt:a.alt,t:now});
+  const cutoff=now-trailMin*60000;
+  while(a.trail.length && a.trail[0].t<cutoff) a.trail.shift();
+  if(a.trail.length>TRAIL_CAP) a.trail.splice(0,a.trail.length-TRAIL_CAP);
+}
 function pushTrails(){
-  for(const a of AC){
-    a.trail.push({lat:a.lat,lon:a.lon,alt:a.alt});
-    if(a.trail.length>35)a.trail.shift();
-  }
+  if(trailMin<=0) return;
+  const now=performance.now();
+  for(const a of AC) pushTrail(a,now);
 }
 let prev=performance.now();
 function frame(now){
@@ -1676,6 +1753,7 @@ function nmDist(a){
 function updPanel(){
   const a=selected;
   document.getElementById('pCount').textContent=AC.length;
+  const pfd=document.getElementById('pfdBtn'); if(pfd) pfd.classList.toggle('dim',!a);
   if(!a){
     document.getElementById('pCall').textContent='—';
     document.getElementById('pType').textContent='';
@@ -1974,6 +2052,20 @@ document.querySelectorAll('.rchip[data-view]').forEach(c=>chipKeys(c,()=>{
   view3d=c.dataset.view==='3d';
   if(view3d) buildMap();                     // renders the extended 3D ground too
 }));
+// TRAIL time stepper — –/+ set how many minutes of breadcrumb trail to keep & draw
+function setTrail(min){
+  trailMin=Math.max(0,Math.min(30,min));
+  document.getElementById('trMinV').textContent=trailMin===0?'OFF':trailMin+' MIN';
+  const now=performance.now(), cutoff=now-trailMin*60000;
+  for(const a of AC){
+    if(trailMin===0) a.trail.length=0;
+    else while(a.trail.length && a.trail[0].t<cutoff) a.trail.shift();
+  }
+}
+document.querySelector('.rchip[data-trd]') &&
+  chipKeys(document.querySelector('.rchip[data-trd]'),()=>setTrail(trailMin-1));
+document.querySelector('.rchip[data-tru]') &&
+  chipKeys(document.querySelector('.rchip[data-tru]'),()=>setTrail(trailMin+1));
 /* ===== LiveATC audio panel =====
    Manual mode: tap one channel. SCAN mode: all channels stream muted through
    a local relay (/atc/…); a level detector opens the highest-priority channel
@@ -2150,6 +2242,7 @@ const TIPS={
         ifr:'Fade an official instrument-navigation chart over the top.' },
   id:{ chgAirport:'Download and switch the whole display to a different airport.',
        tipsTog:'Show a short plain-English tip when you point at a button.',
+       pfdBtn:'Fly along inside the selected plane — a first-person HUD view, with the runway in yellow.',
        homeReset:'Recenter the map back on your home airport.',
        atcPower:'Turn the live control-tower radio on or off.',
        scanChip:'Listen to all channels at once — you hear whoever is talking.',
@@ -2162,6 +2255,7 @@ function applyTips(){
     if(d.b) t=TIPS.b[d.b];
     else if(d.o) t=TIPS.o[d.o];
     else if(d.r!==undefined) t='How far the map reaches out from the center, in miles.';
+    else if(d.trd!==undefined||d.tru!==undefined) t='How many minutes of breadcrumb trail each plane leaves behind (0 = off).';
     else if(d.x) t=TIPS.x[d.x];
     else if(d.view) t=TIPS.view[d.view];
     else if(d.mix) t=TIPS.mix[d.mix];
@@ -2194,6 +2288,345 @@ chipKeys(document.getElementById('tipsTog'),()=>{
   tg.classList.toggle('on',tipsOn);
   if(tipsOn) showTip(tg); else hideTip();               // instant feedback
 });
+
+/* ================= First-person HUD view (selected aircraft) =================
+   Flies the camera *inside* the selected plane, looking along its ADS-B ground
+   track and flight-path angle. The outside world (terrain shaded by elevation,
+   the sea, and the runway highlighted in YELLOW) is drawn in true perspective,
+   with an F/A-18-style green HUD on top: heading tape, speed & altitude boxes,
+   a climb/dive pitch ladder, bank scale and a velocity-vector reticle.
+   Attitude is synthetic (ADS-B sends none); speed is GROUND speed. */
+(function(){
+  const cv=document.getElementById('pfdCanvas');
+  const px=cv.getContext('2d');
+  const modal=document.getElementById('pfdModal');
+  const title=document.getElementById('pfdTitle');
+  const btn=document.getElementById('pfdBtn');
+  const closeBtn=document.getElementById('pfdClose');
+  const W=1000,H=720, CXc=500,CYc=372, SX=cv.width/W, SY=cv.height/H;
+  const FAM=getComputedStyle(document.body).fontFamily;
+  const D2R=Math.PI/180;
+  const HFOV=70, FOC=(W/2)/Math.tan(HFOV/2*D2R);       // wide situational FOV; focal length (px)
+  const GRN='#39ff64', GRND='#1f9c3b';                   // HUD green (bright / dim)
+  const SEA=[15,25,40];                                  // sea colour for elev≈0 cells
+  const NM_PER_FT=1/6076.12;
+  let open=false, raf=0, pB=0,pP=0;                       // smoothed bank/pitch
+  // camera state (set each frame)
+  let lat0,lon0,alt0,cosL,hr,pit,rol, terrPix=null,tRows=0,tCols=0;
+
+  function att(a){                                        // synthetic bank & flight-path pitch
+    const V=Math.max(0,a.gs||0)*0.514444, tr=(a.trkRate||0)*D2R;
+    let bank=Math.atan2(tr*V,9.81)/D2R; bank=Math.max(-35,Math.min(35,bank));
+    const gsf=Math.max(1,(a.gs||0)*1.68781), vsf=(a.vr||0)/60;
+    let fpa=Math.atan2(vsf,gsf)/D2R; fpa=Math.max(-12,Math.min(12,fpa));
+    return {bank,fpa};
+  }
+  // world lat/lon/altFt → screen (perspective; applies camera pitch & roll)
+  function proj(lat,lon,ft){
+    const e=(lon-lon0)*cosL*60, n=(lat-lat0)*60, u=(ft-alt0)*NM_PER_FT;
+    const fwd=e*Math.sin(hr)+n*Math.cos(hr), rgt=e*Math.cos(hr)-n*Math.sin(hr);
+    const cp=Math.cos(pit), sp=Math.sin(pit);
+    const depth=fwd*cp+u*sp, vert=u*cp-fwd*sp;
+    if(depth<=0.03) return null;
+    let X=rgt/depth*FOC, Y=-vert/depth*FOC;
+    const cr=Math.cos(rol), sr=Math.sin(rol);
+    return {x:CXc+X*cr-Y*sr, y:CYc+X*sr+Y*cr, d:depth};
+  }
+  // world direction (azimuth relative to track, elevation angle) → screen, at infinity
+  function projDir(az,el){
+    const ca=Math.cos(az*D2R), sa=Math.sin(az*D2R), ce=Math.cos(el*D2R), se=Math.sin(el*D2R);
+    const fwd=ce*ca, rgt=ce*sa, u=se;
+    const cp=Math.cos(pit), sp=Math.sin(pit);
+    const depth=fwd*cp+u*sp, vert=u*cp-fwd*sp;
+    if(depth<=0.02) return null;
+    let X=rgt/depth*FOC, Y=-vert/depth*FOC;
+    const cr=Math.cos(rol), sr=Math.sin(rol);
+    return {x:CXc+X*cr-Y*sr, y:CYc+X*sr+Y*cr};
+  }
+  function terrColAt(r,c){                                // colour of grid cell (from baked terrain)
+    if(!terrPix) return '#2a3320';
+    const ir=(tRows-1-r), i=(ir*tCols+c)*4;
+    return 'rgb('+terrPix[i]+','+terrPix[i+1]+','+terrPix[i+2]+')';
+  }
+
+  function drawTerrain(){
+    const g=MAP.elev; if(!g){ return; }
+    const rows=g.rows, cols=g.cols, M=g.m;
+    const latOf=r=>g.s+(g.n-g.s)*r/(rows-1), lonOf=c=>g.w+(g.e-g.w)*c/(cols-1);
+    const cells=[];
+    for(let r=0;r<rows-1;r++)for(let c=0;c<cols-1;c++){
+      // quick cull by cell-centre bearing/distance before projecting corners
+      const clat=latOf(r+0.5), clon=lonOf(c+0.5);
+      const dn=(clat-lat0)*60, de=(clon-lon0)*cosL*60, dist=Math.hypot(dn,de);
+      if(dist>34) continue;
+      // each corner at its OWN elevation → the surface is continuous (no gaps on slopes)
+      const e00=Math.max(M[r*cols+c],0),     e01=Math.max(M[r*cols+c+1],0),
+            e11=Math.max(M[(r+1)*cols+c+1],0), e10=Math.max(M[(r+1)*cols+c],0);
+      const p0=proj(latOf(r),lonOf(c),elFt(e00)),   p1=proj(latOf(r),lonOf(c+1),elFt(e01));
+      const p2=proj(latOf(r+1),lonOf(c+1),elFt(e11)), p3=proj(latOf(r+1),lonOf(c),elFt(e10));
+      if(!p0||!p1||!p2||!p3) continue;
+      const d=(p0.d+p2.d)/2;
+      const col=e00<0.6?('rgb('+SEA[0]+','+SEA[1]+','+SEA[2]+')'):terrColAt(r,c);
+      cells.push({p0,p1,p2,p3,d,col});
+    }
+    cells.sort((a,b)=>b.d-a.d);                            // painter's: far first
+    for(const q of cells){
+      px.fillStyle=q.col; px.strokeStyle=q.col; px.lineWidth=1;
+      px.beginPath(); px.moveTo(q.p0.x,q.p0.y); px.lineTo(q.p1.x,q.p1.y);
+      px.lineTo(q.p2.x,q.p2.y); px.lineTo(q.p3.x,q.p3.y); px.closePath();
+      px.fill(); px.stroke();                              // stroke same colour seals seams
+    }
+  }
+  function elFt(m){ return m*3.28084; }
+
+  // every nearby airport: a small dim-green tick + identifier, drawn in perspective
+  function drawAirports(a){
+    if(!(NAV&&NAV.apts)) return;
+    px.font='600 12px '+FAM; px.textAlign='center'; px.textBaseline='alphabetic';
+    for(const ap of NAV.apts){
+      if(ap.id.trim()===HOME.id) continue;                  // home field handled by drawDestination
+      const dn=(ap.lat-a.lat)*60, de=(ap.lon-a.lon)*cosL*60;
+      if(Math.hypot(dn,de)>55) continue;
+      const gz=elFt(groundM(ap.lat,ap.lon));
+      const s=proj(ap.lat,ap.lon,gz); if(!s||s.d<0.5||s.d>55) continue;
+      px.strokeStyle=GRND; px.fillStyle=GRND; px.lineWidth=1.2; px.globalAlpha=.9;
+      // small runway ticks
+      if(ap.rwys) for(const rw of ap.rwys){
+        const m1=proj(rw.a[0],rw.a[1],gz), m2=proj(rw.b[0],rw.b[1],gz);
+        if(m1&&m2){ px.beginPath(); px.moveTo(m1.x,m1.y); px.lineTo(m2.x,m2.y); px.stroke(); }
+      }
+      px.beginPath(); px.moveTo(s.x-3,s.y); px.lineTo(s.x+3,s.y);
+      px.moveTo(s.x,s.y-3); px.lineTo(s.x,s.y+3); px.stroke();
+      px.fillText(ap.id.trim(), s.x, s.y-7);
+      px.globalAlpha=1;
+    }
+  }
+  // the home field ("destination"): runways filled YELLOW + extended centreline + target box
+  function drawDestination(a){
+    if(!(NAV&&NAV.apts)) return null;
+    const ap=NAV.apts.find(p=>p.id.trim()===HOME.id); if(!ap||!ap.rwys) return null;
+    const gz=elFt(groundM(ap.lat,ap.lon));
+    for(const rw of ap.rwys){
+      const A=rw.a, B=rw.b; if(!A||!B) continue;
+      const ux=(B[1]-A[1]), uy=(B[0]-A[0]), ul=Math.hypot(ux*cosL,uy)||1;
+      const hw=0.014, eastNm=(-uy/ul)*hw, northNm=(ux*cosL/ul)*hw;
+      const plat=northNm/60, plon=eastNm/(60*cosL);
+      const c1=proj(A[0]+plat,A[1]+plon,gz), c2=proj(B[0]+plat,B[1]+plon,gz);
+      const c3=proj(B[0]-plat,B[1]-plon,gz), c4=proj(A[0]-plat,A[1]-plon,gz);
+      if(c1&&c2&&c3&&c4){
+        px.beginPath(); px.moveTo(c1.x,c1.y); px.lineTo(c2.x,c2.y);
+        px.lineTo(c3.x,c3.y); px.lineTo(c4.x,c4.y); px.closePath();
+        px.fillStyle='rgba(255,214,10,.32)'; px.fill();
+        px.strokeStyle='#ffd60a'; px.lineWidth=2.6; px.stroke();
+      }
+      // extended approach centreline ~8 nm off each end
+      px.strokeStyle='rgba(255,214,10,.6)'; px.lineWidth=1.6; px.setLineDash([12,10]);
+      for(const [P,Q] of [[A,B],[B,A]]){
+        const vx=(P[0]-Q[0]), vy=(P[1]-Q[1]), vl=Math.hypot(vx*60,vy*cosL*60)||1;
+        const s0=proj(P[0],P[1],gz), s1=proj(P[0]+vx/vl*8,P[1]+vy/vl*8,gz);
+        if(s0&&s1){ px.beginPath(); px.moveTo(s0.x,s0.y); px.lineTo(s1.x,s1.y); px.stroke(); }
+      }
+      px.setLineDash([]);
+    }
+    // target-designator box + label around the field
+    const s=proj(ap.lat,ap.lon,gz+30);
+    if(s&&s.d>0.3){
+      px.strokeStyle='#ffd60a'; px.lineWidth=2; const b=Math.max(16,900/s.d);
+      const h=b/2;                                                  // corner-bracket half-size
+      px.beginPath();
+      px.moveTo(s.x-h,s.y-h+7); px.lineTo(s.x-h,s.y-h); px.lineTo(s.x-h+7,s.y-h);
+      px.moveTo(s.x+h-7,s.y-h); px.lineTo(s.x+h,s.y-h); px.lineTo(s.x+h,s.y-h+7);
+      px.moveTo(s.x+h,s.y+h-7); px.lineTo(s.x+h,s.y+h); px.lineTo(s.x+h-7,s.y+h);
+      px.moveTo(s.x-h+7,s.y+h); px.lineTo(s.x-h,s.y+h); px.lineTo(s.x-h,s.y+h-7);
+      px.stroke();
+      px.fillStyle='#ffd60a'; px.font='700 14px '+FAM; px.textAlign='center';
+      px.fillText(HOME.id, s.x, s.y-h-6);
+    }
+    return ap;
+  }
+  function groundM(lat,lon){                               // sample elevation grid (m) at a point
+    const g=MAP.elev; if(!g) return 0;
+    const fr=(lat-g.s)/(g.n-g.s)*(g.rows-1), fc=(lon-g.w)/(g.e-g.w)*(g.cols-1);
+    const r=Math.max(0,Math.min(g.rows-1,Math.round(fr))), c=Math.max(0,Math.min(g.cols-1,Math.round(fc)));
+    return Math.max(0,g.m[r*g.cols+c]||0);
+  }
+  function drawTraffic(a){                                 // other aircraft in perspective, with data blocks
+    px.textAlign='center'; px.textBaseline='alphabetic';
+    for(const o of AC){
+      if(o===a) continue;
+      const dn=(o.lat-a.lat)*60, de=(o.lon-a.lon)*cosL*60, dist=Math.hypot(dn,de);
+      if(dist>50) continue;
+      const s=proj(o.lat,o.lon,o.alt); if(!s||s.d<0.4) continue;
+      const rel=Math.round(o.alt-(a.alt||0));                // relative altitude (ft)
+      px.strokeStyle=GRN; px.fillStyle=GRN; px.lineWidth=1.4;
+      px.strokeRect(s.x-6,s.y-6,12,12);
+      px.beginPath(); px.moveTo(s.x,s.y-6); px.lineTo(s.x,s.y-13); px.stroke();   // stub
+      px.font='600 12px '+FAM; px.fillText(o.cs, s.x, s.y-16);
+      px.font='600 11px '+FAM; px.fillStyle=GRND;
+      const arw=rel>=0?'▲':'▼';
+      px.fillText(arw+(rel>=0?'+':'')+rel.toLocaleString()+'FT', s.x, s.y+20);
+      px.fillText(dist.toFixed(1)+'NM', s.x, s.y+32);
+    }
+  }
+
+  function pitchLadder(){
+    px.strokeStyle=GRN; px.fillStyle=GRN; px.font='600 14px '+FAM;
+    px.textBaseline='middle';
+    // horizon (0°) — long line with a centre gap
+    line(-24,0,-3,0,false); line(3,0,24,0,false);
+    // climb & dive rungs
+    for(let el=-90;el<=90;el+=5){
+      if(el===0) continue;
+      const seg=(el>0)?false:true;                          // dashed below horizon
+      const spanA=(Math.abs(el)>=60)?7:11;
+      rung(el,spanA,seg);
+    }
+    function line(a0,e0,a1,e1,dash){
+      const p=projDir(a0,e0), q=projDir(a1,e1); if(!p||!q) return;
+      px.lineWidth=2; px.setLineDash(dash?[8,7]:[]);
+      px.beginPath(); px.moveTo(p.x,p.y); px.lineTo(q.x,q.y); px.stroke(); px.setLineDash([]);
+    }
+    function rung(el,span,dash){
+      const l0=projDir(-span,el), l1=projDir(-3,el), r0=projDir(3,el), r1=projDir(span,el);
+      px.lineWidth=1.8; px.setLineDash(dash?[7,6]:[]);
+      if(l0&&l1){ px.beginPath(); px.moveTo(l0.x,l0.y); px.lineTo(l1.x,l1.y);
+        // small down-tick at inner end pointing to horizon
+        const ty=el>0?6:-6; px.lineTo(l1.x,l1.y+ty); px.stroke(); }
+      if(r0&&r1){ px.beginPath(); px.moveTo(r1.x,r1.y); px.lineTo(r0.x,r0.y);
+        const ty=el>0?6:-6; px.lineTo(r0.x,r0.y+ty); px.stroke(); }
+      px.setLineDash([]);
+      // labels
+      const lbl=Math.abs(el);
+      if(l1){ px.textAlign='right'; px.fillText(lbl, l0?l0.x-6:l1.x-40, l0?l0.y:l1.y); }
+      if(r1){ px.textAlign='left';  px.fillText(lbl, r1.x+6, r1.y); }
+    }
+  }
+
+  function velVector(){                                     // flight-path marker — we fly along it, so it sits at centre
+    const x=CXc, y=CYc;
+    px.strokeStyle=GRN; px.lineWidth=2.4;
+    px.beginPath(); px.arc(x,y,9,0,7); px.stroke();
+    px.beginPath();
+    px.moveTo(x-9,y); px.lineTo(x-20,y);                    // left wing
+    px.moveTo(x+9,y); px.lineTo(x+20,y);                    // right wing
+    px.moveTo(x,y-9); px.lineTo(x,y-16);                    // tail fin
+    px.stroke();
+  }
+  function bankScale(){
+    const cx=CXc, cy=CYc, R=250;
+    px.strokeStyle=GRN; px.fillStyle=GRN; px.lineWidth=2;
+    for(const t of [-45,-30,-20,-10,0,10,20,30,45]){
+      const ang=(-90+t)*D2R, r1=R, r0=R-(t%30===0?15:9);
+      const x0=cx+Math.cos(ang)*r0, y0=cy+Math.sin(ang)*r0;
+      const x1=cx+Math.cos(ang)*r1, y1=cy+Math.sin(ang)*r1;
+      px.beginPath(); px.moveTo(x0,y0); px.lineTo(x1,y1); px.stroke();
+    }
+    // moving bank pointer (triangle) at current roll
+    const ang=(-90+pB)*D2R;
+    const tx=cx+Math.cos(ang)*(R-17), ty=cy+Math.sin(ang)*(R-17);
+    px.save(); px.translate(tx,ty); px.rotate(ang+Math.PI/2);
+    px.beginPath(); px.moveTo(0,-10); px.lineTo(-7,2); px.lineTo(7,2); px.closePath(); px.fill();
+    px.restore();
+  }
+  function headingTape(trk){
+    const y=44, w=520, x0=CXc-w/2;
+    px.strokeStyle=GRN; px.fillStyle=GRN; px.font='600 15px '+FAM;
+    px.textAlign='center'; px.textBaseline='middle';
+    px.globalAlpha=.9;
+    const deg2px=w/60;                                      // show ±30°
+    const start=Math.ceil((trk-30)/5)*5;
+    for(let h=start;h<=trk+30;h+=5){
+      const x=CXc+(h-trk)*deg2px; if(x<x0||x>x0+w) continue;
+      const hh=((h%360)+360)%360;
+      px.lineWidth=1.6; px.beginPath(); px.moveTo(x,y+8); px.lineTo(x,y+15); px.stroke();
+      if(hh%10===0){ const lab=(hh===0?'N':hh===90?'E':hh===180?'S':hh===270?'W':(''+(hh/10)).padStart(2,'0'));
+        px.fillText(lab,x,y-2); }
+    }
+    px.globalAlpha=1;
+    // caret + boxed current heading
+    px.beginPath(); px.moveTo(CXc,y+16); px.lineTo(CXc-7,y+26); px.lineTo(CXc+7,y+26); px.closePath(); px.fill();
+    px.strokeStyle=GRN; px.lineWidth=1.6; px.strokeRect(CXc-26,y+27,52,22);
+    px.fillStyle=GRN; px.font='700 17px '+FAM;
+    px.fillText(String(Math.round(trk)).padStart(3,'0'), CXc, y+38);
+  }
+  function box(x,align,label,val,agl){
+    px.strokeStyle=GRN; px.fillStyle=GRN; px.textBaseline='middle';
+    px.font='600 12px '+FAM; px.textAlign=align;
+    px.fillText(label, x, CYc-46);
+    px.lineWidth=2; px.strokeRect(align==='left'?x:x-118,CYc-24,118,48);
+    px.font='700 30px '+FAM; px.textAlign='center';
+    const bx=align==='left'?x+59:x-59;
+    px.fillText(val, bx, CYc);
+    if(agl!=null){ px.font='600 13px '+FAM; px.fillStyle=GRND;
+      px.fillText(agl, bx, CYc+38); px.fillStyle=GRN; }
+  }
+
+  function draw(){
+    const a=selected;
+    px.setTransform(SX,0,0,SY,0,0);
+    // sky gradient
+    let sk=px.createLinearGradient(0,0,0,H);
+    sk.addColorStop(0,'#0a1c33'); sk.addColorStop(.55,'#14406e'); sk.addColorStop(1,'#2f6ea8');
+    px.fillStyle=sk; px.fillRect(0,0,W,H);
+    if(!a){ px.fillStyle='#7fe89a'; px.font='20px '+FAM; px.textAlign='center';
+      px.textBaseline='middle'; px.fillText('NO AIRCRAFT SELECTED',W/2,H/2);
+      title.textContent='HUD'; return; }
+    title.innerHTML=a.cs+' <small>'+(a.t?a.t+' · ':'')+'FIRST-PERSON HUD</small>';
+    // camera
+    lat0=a.lat; lon0=a.lon; alt0=a.alt||0; cosL=Math.cos(lat0*D2R);
+    const tgt=att(a); pB+=(tgt.bank-pB)*0.12; pP+=(tgt.fpa-pP)*0.12;
+    hr=(a.trk||0)*D2R; pit=pP*D2R; rol=-pB*D2R;             // world rolls opposite bank
+    // world (far → near): terrain, other airports, destination field, traffic
+    drawTerrain(); drawAirports(a); drawDestination(a); drawTraffic(a);
+    // HUD symbology
+    pitchLadder(); bankScale(); velVector(); headingTape(a.trk||0);
+    const gs=a.gs||0;
+    const agl=Math.max(0,Math.round((alt0-groundM(a.lat,a.lon)*3.28084)/10)*10);
+    box(70,'left','GS  KT', String(Math.round(gs)));
+    box(W-70,'right','ALT  FT', String(Math.round(alt0)), agl+' AGL');
+    // Mach & G (left/right of the aircraft datum)
+    const sndKt=661.5*Math.sqrt(Math.max(0.2,1-6.875e-6*Math.min(alt0,36000)));
+    const mach=gs/sndKt, gload=1/Math.cos(Math.min(80,Math.abs(pB))*D2R);
+    px.fillStyle=GRN; px.textBaseline='middle'; px.font='600 15px '+FAM;
+    px.textAlign='left';  px.fillText('M '+mach.toFixed(2), 70, CYc+70);
+    px.textAlign='right'; px.fillText(gload.toFixed(1)+' G', W-70, CYc+70);
+    // bank-angle number under the bank pointer (only when actually banking)
+    if(Math.abs(pB)>=2){ px.textAlign='center'; px.font='600 13px '+FAM;
+      px.fillText(Math.abs(Math.round(pB))+'° '+(pB>0?'R':'L'), CXc, CYc-118); }
+    // destination: bearing & distance to the home field, top-left master block
+    let destTxt='';
+    const dap=(NAV&&NAV.apts)?NAV.apts.find(p=>p.id.trim()===HOME.id):null;
+    if(dap){ const dn=(dap.lat-a.lat)*60, de=(dap.lon-a.lon)*cosL*60;
+      const dd=Math.hypot(dn,de), br=((Math.atan2(de,dn)/D2R)%360+360)%360;
+      destTxt='◈ '+HOME.id+'  '+dd.toFixed(1)+'NM  '+String(Math.round(br)).padStart(3,'0')+'°'; }
+    px.fillStyle=GRN; px.textAlign='left'; px.textBaseline='alphabetic'; px.font='700 15px '+FAM;
+    px.fillText('NAV', 24, 30);
+    px.font='600 14px '+FAM; px.fillStyle='#ffd60a'; px.fillText(destTxt, 24, 52);
+    // route (top-right)
+    px.fillStyle=GRN; px.textAlign='right'; px.font='600 14px '+FAM;
+    px.fillText(a.cs+(a.rte?'  '+a.rte:''), W-24, 30);
+    // bottom caption bar
+    const vs=Math.round((a.vr||0)/50)*50;
+    px.fillStyle=GRN; px.textAlign='center'; px.font='600 14px '+FAM;
+    px.fillText('V/S '+(vs>0?'+':'')+vs+' FPM   ·   FPA '+(pP>=0?'+':'')+pP.toFixed(1)+'°', CXc, H-40);
+    px.fillStyle=GRND; px.font='600 12px '+FAM;
+    px.fillText('COCKPIT VIEW · '+a.cs+(a.t?' · '+a.t:'')+'   —   TRAFFIC & FIELDS SHOWN IN PERSPECTIVE · ESC TO EXIT', CXc, H-20);
+  }
+
+  function loop(){ if(!open) return; draw(); raf=requestAnimationFrame(loop); }
+  function openHUD(){
+    if(!selected) return;
+    // cache the baked terrain pixels once for fast per-cell colours
+    try{ if(terrCvs.width){ const d=terrCvs.getContext('2d').getImageData(0,0,terrCvs.width,terrCvs.height);
+      terrPix=d.data; tRows=terrCvs.height; tCols=terrCvs.width; } }catch(e){ terrPix=null; }
+    const s=att(selected); pB=s.bank; pP=s.fpa;
+    open=true; modal.classList.add('show'); closeBtn.focus(); loop();
+  }
+  function closeHUD(){ open=false; modal.classList.remove('show'); if(raf) cancelAnimationFrame(raf); }
+  chipKeys(btn,openHUD); chipKeys(closeBtn,closeHUD);
+  modal.addEventListener('click',e=>{ if(e.target===modal) closeHUD(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&open) closeHUD(); });
+})();
 
 /* ================= audio meter (fake) ================= */
 const meter=document.getElementById('meter');

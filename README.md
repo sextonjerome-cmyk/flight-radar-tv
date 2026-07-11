@@ -153,6 +153,11 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
   3-D airspace volumes.
 - **WAVES** — animate a shimmering sun-glint on the water (EFIS map).
 
+### TRAIL — breadcrumb tails behind each plane
+- **– / +** — set how many **minutes** of fading tail each aircraft leaves behind it (0 =
+  off). Longer trails show more of where planes have been — turns, holding, the whole
+  approach. The selected plane's trail is drawn brightest.
+
 ### FIELD
 - **CHANGE AIRPORT** — type a 4-letter code to download and switch to a new airport.
 
@@ -167,8 +172,20 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
 - **＋ ADD ATC CHANNEL** — add an Approach/Center feed by name (checked live before adding).
 - **VOL** — volume slider.
 
+### HUD VIEW — fly along inside the plane (info panel)
+- **▣ HUD VIEW** — with a plane selected, drops you into a full-screen **first-person cockpit
+  view**, flying along the aircraft's track and flight path, with an F/A-18-style green HUD:
+  heading tape, pitch ladder, velocity vector, bank scale, and boxed **ground speed / altitude**
+  (with height above ground), plus **Mach** and **G**. The world outside is drawn in true
+  perspective — **elevation-shaded terrain**, other **traffic** (with each one's height above/below
+  you and distance), scattered **airport identifiers**, and your home field's **runway highlighted
+  in yellow** with an extended centerline and a target box. Attitude is *derived* from the ADS-B
+  track and climb rate (there's no real attitude in the data) and speed is **ground** speed, so
+  it's a realistic-looking cockpit view — not an instrument. Press **CLOSE** or **Esc** to exit.
+
 ### Clicking around
-- **Click a plane** — its photo, type, route, altitude, speed, and heading.
+- **Click a plane** — selects it: its photo, type, route, altitude, speed, and heading fill
+  the panel, and the **HUD VIEW** button lights up.
 - **Click an airport** — recenters on it and shows its tower/CTAF frequency + weather.
 
 ### What the colors mean
@@ -180,6 +197,9 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
 
 ## Good to know
 
+- **Terrain follows the airport** — the land is shaded by real elevation, so flat fields
+  (like Charleston) look low and green while mountain fields (like Salt Lake City) show
+  light-brown, hill-shaded relief. It downloads automatically with each airport.
 - **Not for navigation** — it's a hobby display, not a certified aviation tool.
 - **Personal use only** — don't rebroadcast the ATC audio (LiveATC's terms).
 - All data is free: ADS-B traffic, FAA nav/airspace/charts, aviationweather.gov,
