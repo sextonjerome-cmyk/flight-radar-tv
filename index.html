@@ -817,7 +817,7 @@ function proj3(lat,lon,altFt){                          // world point → scree
   return {x:(cx/cw*0.5+0.5)*CW, y:(0.5-cy/cw*0.5)*CH, d:cw};
 }
 // ---- WebGL high-resolution terrain (AWS Terrarium DEM tiles on the GPU) ----
-let gl3=null, glProg=null, glVAO=null, glTex=null, glIdxN=0, gl3U={},
+let gl3=null, glProg=null, glVAO=null, glTex=null, glMaskTex=null, glMaskCanvas=null, glIdxN=0, gl3U={},
     glReady=false, glBusy=false, glKey=null, glInit=false, glMinE=0, glMaxE=1,
     glTexel=[1,1], glWorldPerUV=[1,1], glRadNm=60, glWaterE=-99999, glWaterE2=-99999, glSeaMode=0, gl3WaveT=0,
     glHazeN=47, glHazeF=200, glExag=TER_EXAG;
@@ -831,14 +831,14 @@ function initGL(){
   const VS='#version 300 es\n'+
     'in vec2 aXZ; in vec2 aUV; uniform sampler2D uH; uniform mat4 uMVP; uniform float uExag; uniform vec3 uEye;'+
     'uniform vec2 uTexel; uniform vec2 uWorldPerUV; uniform float uWaterE, uSeaMode;'+
-    'out float vElev; out float vDepth; out vec3 vWorld; out vec3 vNormal;'+
+    'out float vElev; out float vDepth; out vec3 vWorld; out vec3 vNormal; out vec2 vUV;'+
     'float dec(vec3 c){return (c.r*255.0*256.0+c.g*255.0+c.b*255.0/256.0)-32768.0;}'+
     // sampled height, with the SEA clamped flat to the detected water level: the DEM
     // includes negative ocean bathymetry, which otherwise dips below the water band and
     // renders as green land — so flatten anything below sea level to the surface.
     'float hgt(vec2 uv){ float e=dec(textureLod(uH,uv,0.0).rgb); return uSeaMode>0.5?max(e,uWaterE):e; }'+
     'void main(){ float e=hgt(aUV); float up=e/1852.0*uExag;'+
-    ' vec3 w=vec3(aXZ.x,up,aXZ.y); vElev=e; vWorld=w; vDepth=length(w-uEye);'+
+    ' vec3 w=vec3(aXZ.x,up,aXZ.y); vElev=e; vWorld=w; vDepth=length(w-uEye); vUV=aUV;'+
     // smooth normal from height-texture central differences (kills mesh facets)
     ' float hxa=hgt(aUV-vec2(uTexel.x,0.0)), hxb=hgt(aUV+vec2(uTexel.x,0.0));'+
     ' float hya=hgt(aUV-vec2(0.0,uTexel.y)), hyb=hgt(aUV+vec2(0.0,uTexel.y));'+
@@ -847,9 +847,8 @@ function initGL(){
     ' vNormal=normalize(vec3(-dhx/sx, 1.0, -dhz/sz));'+
     ' gl_Position=uMVP*vec4(w,1.0); }';
   const FS='#version 300 es\nprecision highp float;'+
-    'in float vElev; in float vDepth; in vec3 vWorld; in vec3 vNormal;'+
-    'uniform float uMinE,uMaxE,uWaterE,uWaterE2,uHazeN,uHazeF,uWaveT,uWaves,uRad; uniform vec3 uSky,uEye; out vec4 frag;'+
-    'float band(float wl,float e){ return wl<-9000.0?0.0: smoothstep(wl-4.0,wl-1.0,e)*(1.0-smoothstep(wl+1.5,wl+5.0,e)); }'+
+    'in float vElev; in float vDepth; in vec3 vWorld; in vec3 vNormal; in vec2 vUV;'+
+    'uniform float uMinE,uMaxE,uWaterE,uWaterE2,uHazeN,uHazeF,uWaveT,uWaves,uRad; uniform vec3 uSky,uEye; uniform sampler2D uMask; out vec4 frag;'+
     'float h21(vec2 p){p=fract(p*vec2(127.1,311.7));p+=dot(p,p+34.5);return fract(p.x*p.y*95.43);}'+
     'float vnz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);'+
     ' float a=h21(i),b=h21(i+vec2(1,0)),c=h21(i+vec2(0,1)),d=h21(i+vec2(1,1));'+
@@ -873,9 +872,10 @@ function initGL(){
     ' base=mix(base, vec3(0.28,0.44,0.22), veg*0.5);'+
     ' float sh=0.30+0.90*max(0.0,dot(n,L));'+
     ' vec3 col=base*sh;'+
-    // water: flat DEM near a detected water level (sea, or a lake at its own elevation)
-    ' float water=max(band(uWaterE,vElev), band(uWaterE2,vElev));'+
-    ' water*=smoothstep(0.86,0.985,n.y);'+   // only flat surfaces read as water
+    // water comes from the baked OSM water mask (sea/lakes/rivers), NOT a flat-elevation guess —
+    // so a flat inland valley floor at some elevation is never mistaken for a lake/river
+    ' float water=texture(uMask,vUV).r;'+
+    ' water*=smoothstep(0.55,0.86,n.y);'+    // suppress the sloped shoreline edge
     ' vec3 wcol=mix(vec3(0.08,0.20,0.36), vec3(0.16,0.34,0.48), 0.5+0.5*n.y);'+
     ' if(uWaves>0.5 && water>0.01){'+        // drifting sun-glitter + sheen on the water
     '   vec2 wp=vWorld.xz*12.0; vec2 dr=vec2(uWaveT*0.6, uWaveT*0.35);'+
@@ -967,28 +967,50 @@ function bakeWaterMask(sx, X0, Y0, z){
     for(let i=0;i<poly.length;i++){ const p=px(poly[i][0],poly[i][1]); i?sx.lineTo(p[0],p[1]):sx.moveTo(p[0],p[1]); } };
   const cElev=poly=>{ let ax=0,ay=0; for(const q of poly){ const p=px(q[0],q[1]); ax+=p[0]; ay+=p[1]; }
     return demAt(ax/poly.length, ay/poly.length); };
+  // parallel WATER MASK canvas (white = OSM water, black = land) at the same registration.
+  // The 3-D shader colours water from this mask so real rivers/lakes/sea show and a flat
+  // inland valley is never mis-coloured as water.
+  const mkc=document.createElement('canvas'); mkc.width=Wp; mkc.height=Hp;
+  const mk=mkc.getContext('2d'); mk.fillStyle='#000'; mk.fillRect(0,0,Wp,Hp);
+  mk.lineJoin='round'; mk.lineCap='round';
+  const mtrace=poly=>{ mk.beginPath();
+    for(let i=0;i<poly.length;i++){ const p=px(poly[i][0],poly[i][1]); i?mk.lineTo(p[0],p[1]):mk.moveTo(p[0],p[1]); } };
   sx.save(); sx.lineJoin='round'; sx.lineCap='round';
   // open sea / tidal estuaries → sea level (0 m); flattens the DEM's negative ocean bathymetry
-  sx.fillStyle=enc(0);
-  if(MAP.water) for(const p of MAP.water){ trace(p); sx.closePath(); sx.fill(); }
+  sx.fillStyle=enc(0); mk.fillStyle='#fff';
+  if(MAP.water) for(const p of MAP.water){ trace(p); sx.closePath(); sx.fill(); mtrace(p); mk.closePath(); mk.fill(); }
   // lakes → each flattened to its OWN elevation (sampled), so a high lake (Great Salt Lake
   // ~1282 m) stays at altitude instead of being punched down to sea level
-  if(MAP.lakes) for(const p of MAP.lakes){ sx.fillStyle=enc(cElev(p)); trace(p); sx.closePath(); sx.fill(); }
+  if(MAP.lakes) for(const p of MAP.lakes){ sx.fillStyle=enc(cElev(p)); trace(p); sx.closePath(); sx.fill();
+    mtrace(p); mk.closePath(); mk.fill(); }
   // rivers → each segment at its local ground elevation
-  sx.lineWidth=Math.max(2.5, 2**(z-9)*2.2);
+  const rw=Math.max(2.5, 2**(z-9)*2.2); sx.lineWidth=rw; mk.lineWidth=rw; mk.strokeStyle='#fff';
   if(MAP.rivers) for(const poly of MAP.rivers){
     for(let i=1;i<poly.length;i++){ const a=px(poly[i-1][0],poly[i-1][1]), b=px(poly[i][0],poly[i][1]);
       sx.strokeStyle=enc(demAt((a[0]+b[0])/2,(a[1]+b[1])/2));
-      sx.beginPath(); sx.moveTo(a[0],a[1]); sx.lineTo(b[0],b[1]); sx.stroke(); } }
-  // marsh islands → a touch above the local water so they read as land
-  if(MAP.islands) for(const p of MAP.islands){ sx.fillStyle=enc(Math.max(6,cElev(p)+3)); trace(p); sx.closePath(); sx.fill(); }
+      sx.beginPath(); sx.moveTo(a[0],a[1]); sx.lineTo(b[0],b[1]); sx.stroke();
+      mk.beginPath(); mk.moveTo(a[0],a[1]); mk.lineTo(b[0],b[1]); mk.stroke(); } }
+  // marsh islands → a touch above the local water so they read as land (punch holes in the mask)
+  if(MAP.islands){ mk.fillStyle='#000';
+    for(const p of MAP.islands){ sx.fillStyle=enc(Math.max(6,cElev(p)+3)); trace(p); sx.closePath(); sx.fill();
+      mtrace(p); mk.closePath(); mk.fill(); } }
   sx.restore();
+  glMaskCanvas=mkc;
 }
 function buildTerrainMesh(st, X0, Y0, Wp, Hp, world, GN){
   const g=gl3; GN=GN||320;
   if(!glTex) glTex=g.createTexture();
   g.bindTexture(g.TEXTURE_2D,glTex); g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,false);
   g.texImage2D(g.TEXTURE_2D,0,g.RGB,g.RGB,g.UNSIGNED_BYTE,st);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
+  // water mask texture (unit 1): white where OSM water is, black land
+  if(!glMaskTex) glMaskTex=g.createTexture();
+  g.bindTexture(g.TEXTURE_2D,glMaskTex); g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,false);
+  if(glMaskCanvas) g.texImage2D(g.TEXTURE_2D,0,g.RGB,g.RGB,g.UNSIGNED_BYTE,glMaskCanvas);
+  else { g.texImage2D(g.TEXTURE_2D,0,g.RGB,1,1,0,g.RGB,g.UNSIGNED_BYTE,new Uint8Array([0,0,0])); }
   g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);
   g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
   g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);
@@ -1017,8 +1039,11 @@ function buildTerrainMesh(st, X0, Y0, Wp, Hp, world, GN){
   glWaterE = c1>50 ? modes[0][0] : -99999;           // dominant flat water body
   glWaterE2=-99999;                                   // a second body at another level
   for(const [e,c] of modes){ if(Math.abs(e-glWaterE)>10 && c>Math.max(50,c1*0.06)){ glWaterE2=e; break; } }
-  // a near-sea-level body IS the ocean → flatten its bathymetry flat in the vertex shader
-  glSeaMode = (glWaterE>-9000 && glWaterE<80) ? 1 : 0;
+  // a near-sea-level body IS the ocean → flatten its bathymetry flat in the vertex shader.
+  // Require real coastline/sea in the data AND a near-zero level, so a flat INLAND valley
+  // floor (e.g. Lemoore ~70 m) is never treated as sea and flooded.
+  const hasSea = (typeof MAP!=='undefined' && MAP && ((MAP.water&&MAP.water.length)||(MAP.coasts&&MAP.coasts.length)));
+  glSeaMode = (hasSea && glWaterE>-9000 && glWaterE<30) ? 1 : 0;
   const xz=new Float32Array(GN*GN*2), uv=new Float32Array(GN*GN*2);
   glTexel=[1/st.width, 1/st.height];
   glWorldPerUV=[(Wp/world*360)*cosLat*60, (px2lat(Y0)-px2lat(Y0+Hp))*60];  // nm across full uv
@@ -1043,6 +1068,8 @@ function renderGLTerrain(){
   g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);
   g.useProgram(glProg);
   g.activeTexture(g.TEXTURE0); g.bindTexture(g.TEXTURE_2D,glTex);
+  g.activeTexture(g.TEXTURE1); g.bindTexture(g.TEXTURE_2D,glMaskTex); g.uniform1i(uLoc('uMask'),1);
+  g.activeTexture(g.TEXTURE0);
   g.uniform1i(uLoc('uH'),0); g.uniformMatrix4fv(uLoc('uMVP'),false,MVP);
   g.uniform1f(uLoc('uExag'),glExag); g.uniform3fv(uLoc('uEye'),camEye);
   g.uniform1f(uLoc('uMinE'),glMinE); g.uniform1f(uLoc('uMaxE'),glMaxE);
