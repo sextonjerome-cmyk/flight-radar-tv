@@ -983,13 +983,18 @@ function bakeWaterMask(sx, X0, Y0, z){
   // ~1282 m) stays at altitude instead of being punched down to sea level
   if(MAP.lakes) for(const p of MAP.lakes){ sx.fillStyle=enc(cElev(p)); trace(p); sx.closePath(); sx.fill();
     mtrace(p); mk.closePath(); mk.fill(); }
-  // rivers → each segment at its local ground elevation
-  const rw=Math.max(2.5, 2**(z-9)*2.2); sx.lineWidth=rw; mk.lineWidth=rw; mk.strokeStyle='#fff';
+  // rivers → each segment at its local ground elevation, width TAPERING with distance from the
+  // field (same as the 2-D map) so they read as thin tapered rivers, not fat uniform ribbons
+  const rBase=Math.min(4.5, Math.max(1.8, 2**(z-12)*3.2));
+  mk.strokeStyle='#fff';
   if(MAP.rivers) for(const poly of MAP.rivers){
     for(let i=1;i<poly.length;i++){ const a=px(poly[i-1][0],poly[i-1][1]), b=px(poly[i][0],poly[i][1]);
-      sx.strokeStyle=enc(demAt((a[0]+b[0])/2,(a[1]+b[1])/2));
+      const mlat=(poly[i-1][0]+poly[i][0])/2, mlon=(poly[i-1][1]+poly[i][1])/2;
+      const dnm=Math.hypot((mlat-CTR.lat)*60,(mlon-CTR.lon)*COSLAT*60);
+      const w=rBase*Math.max(0.3, 1-dnm/(rangeNm*1.7));
+      sx.lineWidth=w; sx.strokeStyle=enc(demAt((a[0]+b[0])/2,(a[1]+b[1])/2));
       sx.beginPath(); sx.moveTo(a[0],a[1]); sx.lineTo(b[0],b[1]); sx.stroke();
-      mk.beginPath(); mk.moveTo(a[0],a[1]); mk.lineTo(b[0],b[1]); mk.stroke(); } }
+      mk.lineWidth=w; mk.beginPath(); mk.moveTo(a[0],a[1]); mk.lineTo(b[0],b[1]); mk.stroke(); } }
   // marsh islands → a touch above the local water so they read as land (punch holes in the mask)
   if(MAP.islands){ mk.fillStyle='#000';
     for(const p of MAP.islands){ sx.fillStyle=enc(Math.max(6,cElev(p)+3)); trace(p); sx.closePath(); sx.fill();
