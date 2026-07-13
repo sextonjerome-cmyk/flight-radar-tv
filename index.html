@@ -221,6 +221,8 @@
   .pfdNav:hover,.pfdNav:focus{color:#eaf4fb;background:rgba(30,70,110,.6);outline:none;}
   #pfdBar{display:flex;align-items:center;gap:12px;margin:2px 6px 6px;flex:none;}
   #pfdTitle{font-size:22px;font-weight:600;color:#E4EBF2;letter-spacing:.05em;flex:1;}
+  #pfdMapGrp{display:inline-flex;gap:4px;}
+  #pfdMapGrp .mapc{padding:5px 9px;font-size:13px;letter-spacing:.06em;}
   #pfdTitle small{color:#7A8792;font-weight:400;font-size:15px;letter-spacing:.02em;}
   #pfdClose{font-size:15px;}
   #pfdCanvas{display:block;width:auto;height:auto;max-width:100%;
@@ -269,6 +271,13 @@
     <div id="pfdCard">
       <div id="pfdBar">
         <span id="pfdTitle">PFD</span>
+        <span id="pfdMapGrp" title="Pick the basemap / chart draped on the terrain">
+          <span class="rchip mapc" data-map="efis" tabindex="0">EFIS</span>
+          <span class="rchip mapc" data-map="sat"  tabindex="0">SAT</span>
+          <span class="rchip mapc" data-map="dark" tabindex="0">DARK</span>
+          <span class="rchip mapc" data-map="sec"  tabindex="0">SECT</span>
+          <span class="rchip mapc" data-map="ifr"  tabindex="0">IFR</span>
+        </span>
         <span class="rchip" id="pfdSkin" tabindex="0"
               title="Switch between the fighter-style HUD and a Garmin-style glass PFD">G1000</span>
         <span class="rchip" id="pfdClose" tabindex="0">✕ CLOSE</span>
@@ -517,7 +526,7 @@ const CREDIT={sec:'CHART: FAA VFR SECTIONAL',ifr:'CHART: FAA IFR LOW',
               sat:'IMAGERY © ESRI MAXAR',dark:'BASEMAP © CARTO · © OSM'};
 if(CHARTS)for(const b in CHARTS)for(const v in CHARTS[b]){
   const L=CHARTS[b][v]; L.el=new Image();
-  L.el.onload=()=>{ if(base===b||(b==='dark'&&base==='sat')||mix[b]>0) buildMap(); };
+  L.el.onload=()=>{ glDrapeSig=''; if(base===b||(b==='dark'&&base==='sat')||mix[b]>0) buildMap(); };  // refresh 3-D drape too
   L.el.src=L.img;
 }
 
@@ -1350,11 +1359,11 @@ function texTri(c,img,x0,y0,x1,y1,x2,y2,u0,v0,u1,v1,u2,v2){
 function drawWeather3(){
   if(!ovl.wx || !wxTiles.length) return;
   const WT=wxTiles;
-  const gz=elevFtAt(CTR.lat,CTR.lon), G=2, LAYERS=12, TOP=11000;
+  const gz=elevFtAt(CTR.lat,CTR.lon), G=5, LAYERS=14, TOP=11000;   // G = tile subdivision: high → smooth texture, no blocks
   ctx.imageSmoothingEnabled=true;
   for(let L=0;L<LAYERS;L++){
     const f=L/(LAYERS-1), alt=gz+TOP*f;
-    ctx.globalAlpha=0.12*(1-0.7*f*f);                     // many close, faint layers → smooth volume, fainter aloft
+    ctx.globalAlpha=0.11*(1-0.5*f*f);                     // many close layers → full, smooth volume, fainter aloft
     for(const t of WT){
       if(!(t.img.complete && t.img.naturalWidth)) continue;
       const w=t.img.naturalWidth, h=t.img.naturalHeight;
@@ -4267,6 +4276,7 @@ chipKeys(document.getElementById('tipsTog'),()=>{
       terrPix=d.data; tRows=terrCvs.height; tCols=terrCvs.width; } }catch(e){ terrPix=null; }
     const s=att(selected); pB=s.bank; pP=s.fpa;
     try{ fetchTerrain(); }catch(e){}                       // ensure GPU mountains are loaded for the cockpit view
+    try{ syncMapBtn(); }catch(e){}                         // reflect the current basemap on the MAP chip
     open=true; modal.classList.add('show'); closeBtn.focus(); loop();
   }
   function closeHUD(){ open=false; modal.classList.remove('show'); if(raf) cancelAnimationFrame(raf); }
@@ -4277,6 +4287,17 @@ chipKeys(document.getElementById('tipsTog'),()=>{
   chipKeys(skinBtn,()=>{ skin=(skin==='g1000')?'hud':'g1000';
     skinBtn.classList.toggle('on', skin==='g1000');
     try{ localStorage.setItem('frtv_pfdskin', skin); }catch(e){} });
+  // MAP chips: pick the basemap/chart draped on the cockpit terrain without leaving the view.
+  // Uses the same global base/mix as the 2-D/3-D map, so the terrain drape updates live.
+  const MAPSET={ efis:()=>{base='efis';mix.sec=0;mix.ifr=0;}, sat:()=>{base='sat';mix.sec=0;mix.ifr=0;},
+                 dark:()=>{base='dark';mix.sec=0;mix.ifr=0;}, sec:()=>{base='efis';mix.sec=100;mix.ifr=0;},
+                 ifr:()=>{base='efis';mix.sec=0;mix.ifr=100;} };
+  const curMap=()=> base==='sat'?'sat' : base==='dark'?'dark' : mix.ifr>0?'ifr' : mix.sec>0?'sec' : 'efis';
+  function syncMapBtn(){ document.querySelectorAll('#pfdMapGrp .mapc')
+    .forEach(el=>el.classList.toggle('on', el.dataset.map===curMap())); }
+  document.querySelectorAll('#pfdMapGrp .mapc').forEach(el=>chipKeys(el,()=>{
+    (MAPSET[el.dataset.map]||MAPSET.efis)(); syncMapBtn(); try{ buildMap(); }catch(e){} }));  // buildMap keeps 2-D/3-D in sync
+  syncMapBtn();
   // prev/next-aircraft arrows: fly the next/previous plane without leaving the HUD
   function cycleAC(dir){
     const list=(AC||[]).filter(o=>o.cs && o.lat!=null && o.lon!=null)
