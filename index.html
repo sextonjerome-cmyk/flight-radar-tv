@@ -327,7 +327,9 @@
       <div class="ctlRow">
         <span class="lbl">WX</span>
         <span class="rchip on" data-o="wx" tabindex="0">DOPPLER</span>
+        <span class="rchip" id="wxAnimTog" data-o="wxanim" tabindex="0" title="Animate the last hour of radar">LOOP</span>
         <span class="rchip on" data-o="sig" tabindex="0">SIG/AIRMET</span>
+        <span class="rchip" data-o="wxdot" tabindex="0" title="Colour airports by flight category (VFR/MVFR/IFR/LIFR)">WX DOTS</span>
       </div>
       <div class="ctlRow">
         <span class="lbl">RANGE</span>
@@ -338,6 +340,8 @@
         <span class="lbl" style="width:auto">NM</span>
         <span class="rchip" data-x="auto" tabindex="0">AUTO</span>
         <span class="rchip" data-x="alt" tabindex="0">≤180</span>
+        <span class="rchip" data-o="attract" tabindex="0" style="margin-left:10px"
+              title="Auto-spotlight & follow interesting traffic (emergencies, military, heavies, closest inbound)">ATTRACT</span>
       </div>
       <div class="ctlRow">
         <span class="lbl">VIEW</span>
@@ -350,6 +354,7 @@
                 style="font-size:15px;line-height:15px">↺</span>
         </span>
         <span class="rchip on" data-o="wave" tabindex="0" title="Animated water (EFIS)">WAVES</span>
+        <span class="rchip" data-o="sun" tabindex="0" title="Day/night lighting from the real sun position">SUN</span>
         <span class="rchip on" id="trailTog" tabindex="0" style="margin-left:10px"
               title="Show breadcrumb trails behind each plane (click to toggle)">TRAIL</span>
         <span class="vstep">
@@ -495,7 +500,7 @@ let trailOn=true;                             // TRAIL button: ON = fading minut
 const TRAIL_CAP=900;                           // hard point cap (memory guard)
 const mix={sec:0,ifr:0};                      // TV default: clean EFIS, no chart wash
 const ovl={asp:true,sua:false,ils:true,rnav:true,wpt:false,nav:false,awy:false,
-           wx:true,sig:true,wave:true};
+           wx:true,sig:true,wave:true,wxdot:false,sun:false,wxanim:false,attract:false};
 const VEIL={sec:.32,ifr:.3,sat:.46,dark:.22};
 const RINGCOL={efis:['#1C232B','#4A545D'],sec:['rgba(45,45,58,.6)','rgba(35,35,46,.9)'],
                ifr:['rgba(45,45,58,.6)','rgba(35,35,46,.9)'],
@@ -634,7 +639,7 @@ function renderMap(c, vh){
     const dim=Math.min(.5, VEIL.sec*mix.sec/100 + VEIL.ifr*mix.ifr/100);
     if(dim>0){ c.fillStyle='rgba(0,0,0,'+dim.toFixed(3)+')'; c.fillRect(0,0,CW,VH); }
   }
-  if(ovl.wx) drawWeather(c,fam);
+  if(ovl.wx && !ovl.wxanim) drawWeather(c,fam);          // static frame in the cached map; LOOP animates live
   if(ovl.sig) drawSigmets(c,fam);
   if(ovl.awy) drawAirways(c,fam);
   if(ovl.sua) drawSUA(c,fam);
@@ -1549,15 +1554,14 @@ function drawChart(c,k,alpha){
 }
 
 // live NEXRAD composite via RainViewer tiles
-let wxTiles=[], wxTime=0;
+let wxTiles=[], wxTime=0, wxFrames=[], wxAnimIdx=0, wxAnimAt=0;
 async function radarRefresh(){
   try{
     const r=await fetch('https://api.rainviewer.com/public/weather-maps.json',
                         {signal:sig(12000)});
     const j=await r.json();
-    const fr=j.radar&&j.radar.past&&j.radar.past[j.radar.past.length-1];
-    if(!fr){ if(!wxTiles.length) setTimeout(radarRefresh,30000); return; }
-    wxTime=fr.time;
+    const past=(j.radar&&j.radar.past)||[];
+    if(!past.length){ if(!wxTiles.length) setTimeout(radarRefresh,30000); return; }
     // radar tile box around the CURRENT home field (was hardcoded to Charleston, so
     // any other airport got no radar — the tiles landed off-screen)
     const z=7, n=2**z;                                    // z7 = RainViewer free-tier max
@@ -1567,17 +1571,34 @@ async function radarRefresh(){
     const inv=y=>Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*180/Math.PI;
     const tx0=Math.floor((W+180)/360*n), tx1=Math.floor((E+180)/360*n);
     const ty0=Math.floor(my(N)*n), ty1=Math.floor(my(S)*n);
-    const tiles=[];
-    for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++){
-      const img=new Image(); img.crossOrigin='anonymous';
-      img.onload=scheduleBuild;
-      img.src=j.host+fr.path+'/512/'+z+'/'+tx+'/'+ty+'/2/1_1.png';
-      tiles.push({img, W:tx/n*360-180, E:(tx+1)/n*360-180, N:inv(ty), S:inv(ty+1)});
-    }
-    wxTiles=tiles;
+    const loadFrame=fr=>{ const tiles=[];
+      for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++){
+        const img=new Image(); img.crossOrigin='anonymous'; img.onload=scheduleBuild;
+        img.src=j.host+fr.path+'/512/'+z+'/'+tx+'/'+ty+'/2/1_1.png';
+        tiles.push({img, W:tx/n*360-180, E:(tx+1)/n*360-180, N:inv(ty), S:inv(ty+1)});
+      } return {time:fr.time, tiles}; };
+    // LOOP on → load the last ~hour of frames to animate; else just the newest
+    const want = ovl.wxanim ? past.slice(-12) : past.slice(-1);
+    wxFrames = want.map(loadFrame);
+    const last = wxFrames[wxFrames.length-1];
+    wxTiles=last.tiles; wxTime=last.time;                 // static/3D path uses the newest frame
+    if(wxAnimIdx>=wxFrames.length) wxAnimIdx=0;
   }catch(e){ if(!wxTiles.length) setTimeout(radarRefresh,30000); }  // retry soon on a failed first load
 }
 setInterval(radarRefresh,5*60*1000); radarRefresh();
+// animated radar: cycle the loaded frames (with a hold on the newest), drawn as a live overlay
+function drawWeatherAnim(c){
+  if(!wxFrames.length) return;
+  const now=performance.now(), isLast=wxAnimIdx>=wxFrames.length-1;
+  if(now-wxAnimAt > (isLast?1600:520)){ wxAnimAt=now; wxAnimIdx=(wxAnimIdx+1)%wxFrames.length; }
+  const fr=wxFrames[Math.min(wxAnimIdx,wxFrames.length-1)]; if(!fr) return;
+  c.globalAlpha=.62; c.imageSmoothingEnabled=true;
+  for(const t of fr.tiles){ if(!(t.img.complete&&t.img.naturalWidth)) continue;
+    const tl=prj(t.N,t.W), br=prj(t.S,t.E); c.drawImage(t.img, tl.x,tl.y, br.x-tl.x, br.y-tl.y); }
+  c.globalAlpha=1;
+  const mins=fr.time?Math.max(0,Math.round((Date.now()/1000-fr.time)/60)):0;
+  txt(c,'WX: NEXRAD LOOP · -'+mins+' MIN', 16, VH-40, '11px '+getComputedStyle(document.body).fontFamily, '#4A545D');
+}
 function drawWeather(c,fam){
   let any=false;
   c.globalAlpha=.62; c.imageSmoothingEnabled=true;
@@ -1845,12 +1866,27 @@ function drawApproaches(c,fam){
   }
 }
 
+// standard aviation flight-category colours (weather-dot overlay)
+const CATCOL={VFR:'#2ecc40', MVFR:'#3aa0ff', IFR:'#ff4136', LIFR:'#ff3ad6'};
+function flightCat(m){
+  if(!m) return null;
+  let vis=m.visib;                                            // statute miles ("10+", 6, "1 1/2"…)
+  if(typeof vis==='string') vis=parseFloat(vis.replace('+',''));
+  if(vis==null||isNaN(vis)) vis=99;
+  let ceil=99999;                                            // lowest broken/overcast base (ft)
+  for(const cl of (m.clouds||[])){ if(/^(BKN|OVC|OVX)$/.test(cl.cover||'') && cl.base!=null) ceil=Math.min(ceil,+cl.base); }
+  if(vis<1 || ceil<500) return 'LIFR';
+  if(vis<3 || ceil<1000) return 'IFR';
+  if(vis<=5 || ceil<=3000) return 'MVFR';
+  return 'VFR';
+}
 function drawAirports(c,fam){
   for(const ap of NAV.apts){
     const q=prj(ap.lat,ap.lon);
     if(q.x<-40||q.x>CW+40||q.y<-40||q.y>CH+40) continue;
     const acol=(mix.sec>=55||mix.ifr>=55)?'#8B98A3':'#6E7B87';
     c.strokeStyle=acol; c.setLineDash([]);
+    let R;
     if(ap.rwys.length){
       // runway lines inside the classic airport circle
       let rmax=6;
@@ -1860,13 +1896,16 @@ function drawAirports(c,fam){
         c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); c.stroke();
         rmax=Math.max(rmax, Math.hypot(a.x-q.x,a.y-q.y), Math.hypot(b.x-q.x,b.y-q.y));
       }
-      c.lineWidth=1.6;
-      c.beginPath(); c.arc(q.x,q.y,rmax+5,0,Math.PI*2); c.stroke();
+      c.lineWidth=1.6; R=rmax+5;
+      c.beginPath(); c.arc(q.x,q.y,R,0,Math.PI*2); c.stroke();
     }else{
-      c.lineWidth=1.8;
-      c.beginPath(); c.arc(q.x,q.y,5.5,0,Math.PI*2); c.stroke();
+      c.lineWidth=1.8; R=5.5;
+      c.beginPath(); c.arc(q.x,q.y,R,0,Math.PI*2); c.stroke();
       c.fillStyle=acol; c.beginPath(); c.arc(q.x,q.y,1.6,0,Math.PI*2); c.fill();
     }
+    // weather-category halo (VFR green / MVFR blue / IFR red / LIFR magenta)
+    if(ovl.wxdot){ const cat=flightCat(metars[ap.id.trim()]);
+      if(cat){ c.strokeStyle=CATCOL[cat]; c.lineWidth=2.4; c.beginPath(); c.arc(q.x,q.y,R+3.5,0,Math.PI*2); c.stroke(); } }
     if(VH<=CH) txt(c, ap.id.trim(), q.x+10, q.y-9, '600 14px '+fam, '#9AA6B2');
   }
 }
@@ -2215,6 +2254,11 @@ function drawAC(){
     ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+Math.sin(r)*vlen, p.y-Math.cos(r)*vlen); ctx.stroke();
     // target square
     ctx.fillStyle=col; ctx.fillRect(p.x-5.5,p.y-5.5,11,11);
+    // attract-mode spotlight: pulsing ring on emergency (red) / military (cyan) / heavy (amber)
+    if(ovl.attract){ const sc=spotCol(a); if(sc){
+      const pu=0.5+0.5*Math.sin(performance.now()/1000*3);
+      ctx.strokeStyle=sc; ctx.globalAlpha=0.35+0.5*pu; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(p.x,p.y,14+pu*8,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1; } }
     if(sel){ ctx.strokeStyle=col; ctx.lineWidth=1.5;
              ctx.strokeRect(p.x-12,p.y-12,24,24); }
     // leader line + data block (NE of target)
@@ -2264,21 +2308,65 @@ function pushTrails(){
   const now=performance.now();
   for(const a of AC) pushTrail(a,now);
 }
-let prev=performance.now();
+// ---- day/night: real sun position drawn as a moving terminator / tint over the map ----
+function sunAltDeg(lat,lon,d){
+  const rad=Math.PI/180;
+  const n=d.getTime()/86400000 + 2440587.5 - 2451545.0;      // days since J2000
+  const L=(280.460+0.9856474*n)%360, g=(357.528+0.9856003*n)%360;
+  const lam=(L+1.915*Math.sin(g*rad)+0.020*Math.sin(2*g*rad))*rad;
+  const eps=(23.439-0.0000004*n)*rad;
+  const decl=Math.asin(Math.sin(eps)*Math.sin(lam));
+  const ra=Math.atan2(Math.cos(eps)*Math.sin(lam),Math.cos(lam));
+  const gmst=(280.46061837+360.98564736629*n)%360;
+  const H=(gmst+lon)*rad - ra;                                // hour angle
+  return Math.asin(Math.sin(lat*rad)*Math.sin(decl)+Math.cos(lat*rad)*Math.cos(decl)*Math.cos(H))/rad;
+}
+function skyOverlay(alt){                                     // [r,g,b,a] tint for a sun altitude (null = full day)
+  if(alt>7) return null;
+  if(alt>-0.83){ const t=(7-alt)/7.83; return [255,138,48, 0.17*t]; }   // golden-hour warm glow
+  const t=Math.min(1,(-alt-0.83)/12);                        // dusk → deep night
+  return [8,14,36, 0.16+0.62*t];
+}
+let _dnGrid=null,_dnAt=0;
+function drawDayNight(c){                                     // 2D: grid-sampled terminator tint
+  const now=performance.now(), cols=24, rows=14;
+  if(!_dnGrid || now-_dnAt>1500){
+    _dnAt=now; const d=new Date(); _dnGrid=new Array((cols+1)*(rows+1));
+    for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
+      const sx=i/cols*CW, sy=j/rows*CH;
+      const lon=CTR.lon+(sx-CW/2)/(COSLAT*60*pxPerNm), lat=CTR.lat-(sy-CH/2)/(60*pxPerNm);
+      _dnGrid[j*(cols+1)+i]=skyOverlay(sunAltDeg(lat,lon,d));
+    }
+  }
+  for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
+    const o=_dnGrid[j*(cols+1)+i]; if(!o) continue;
+    c.fillStyle='rgba('+o[0]+','+o[1]+','+o[2]+','+o[3].toFixed(3)+')';
+    c.fillRect(i/cols*CW-0.5, j/rows*CH-0.5, CW/cols+1.5, CH/rows+1.5);
+  }
+}
+function centerNight(){ return ovl.sun ? skyOverlay(sunAltDeg(CTR.lat,CTR.lon,new Date())) : null; }
+let prev=performance.now(), attractAt=0;
 function frame(now){
   const dt=Math.min((now-prev)/1000,.2); prev=now;
   step(dt);
   if(now-lastTrail>4000){ pushTrails(); lastTrail=now; }
   const hudOpen=document.getElementById('pfdModal').classList.contains('show');
+  if(ovl.attract && !hudOpen && now-attractAt>11000){        // auto-spotlight interesting traffic on the map
+    attractAt=now; const p=bestInterest(null);
+    if(p && p!==selected){ selected=p; updPanel(); loadPhoto(p); }
+  }
   ctx.clearRect(0,0,CW,CH);
   if(view3d){
     const fam=getComputedStyle(document.body).fontFamily;
-    if(!hudOpen) renderScene3(dt,fam);           // true-perspective orbit view (mountains + traffic)
+    if(!hudOpen){ renderScene3(dt,fam);          // true-perspective orbit view (mountains + traffic)
+      const o=centerNight(); if(o){ ctx.fillStyle='rgba('+o[0]+','+o[1]+','+o[2]+','+o[3].toFixed(3)+')'; ctx.fillRect(0,0,CW,CH); } }
   }                                              // (skip while the HUD drives the shared GL canvas)
   else{
     const r3=document.getElementById('radar3d'); if(r3.style.display!=='none') r3.style.display='none';
     ctx.drawImage(mapCvs,0,0,CW,CH);
+    if(ovl.wx && ovl.wxanim) drawWeatherAnim(ctx); // animated radar loop (live overlay)
     if(ovl.wave && base==='efis') drawWater(dt);
+    if(ovl.sun) drawDayNight(ctx);               // day/night terminator over the map (under traffic)
     drawAC();
   }
   requestAnimationFrame(frame);
@@ -2446,6 +2534,28 @@ function nmDist(a){
   const dx=(a.lon-CTR.lon)*COSLAT*60, dy=(a.lat-CTR.lat)*60;
   return Math.hypot(dx,dy);
 }
+// ---- "attract" mode: auto-spotlight the most interesting traffic ----
+const HEAVY_T=/^(A38|A33|A34|A35|B74|B77|B78|B76|MD11|IL96|AN12|C5|C17|KC10|KC46)/i;
+const MIL_CS=/^(RCH|PAT|CNV|NAVY|ARMY|EVAC|REACH|DOOM|SLAM|SHELL|BLADE|VADER|GRIM|SPAR|POLO|TROY|HObo)/i;
+function isEmerg(a){ return /^(7500|7600|7700)$/.test(a.sq||''); }
+function isMil(a){ return MIL_CS.test(a.cs||''); }
+function isHeavy(a){ return HEAVY_T.test((a.t||'').replace(/[\s-]/g,'')); }
+function interesting(a){ return isEmerg(a)||isMil(a)||isHeavy(a); }
+function spotCol(a){ return isEmerg(a)?'#ff4136':isMil(a)?'#22e0ff':isHeavy(a)?'#ffb02e':null; }
+function interestScore(a){
+  if(a.gnd||a.lat==null) return -1;
+  let s = 20 - Math.min(20, nmDist(a)/8);                     // base: closer = higher
+  if(a.rte && a.rte.split('-')[1]===HOME.id.trim()) s+=40;   // inbound to the home field
+  if(isHeavy(a)) s+=120;
+  if(isMil(a))   s+=220;
+  if(isEmerg(a)) s+=1000;
+  return s;
+}
+function bestInterest(exclude){
+  let best=null,bs=-1e9;
+  for(const a of AC){ if(a===exclude) continue; const s=interestScore(a); if(s>bs){bs=s;best=a;} }
+  return best;
+}
 function updPanel(){
   const a=selected;
   document.getElementById('pCount').textContent=AC.length;
@@ -2527,6 +2637,7 @@ async function wxRefresh(){
     const r=await fetch('/api/metar',{signal:sig(12000)});
     for(const m of await r.json()) metars[m.icaoId]=m;
     calcRunway(); applyMetar(); updArrivals();
+    if(ovl.wxdot) buildMap();                                 // refresh weather-category dots
   }catch(e){}
   try{
     const r=await fetch('/api/taf',{signal:sig(12000)});
@@ -2620,6 +2731,11 @@ document.querySelectorAll('.rchip[data-b]').forEach(c=>chipKeys(c,()=>{
 document.querySelectorAll('.rchip[data-o]').forEach(c=>chipKeys(c,()=>{
   ovl[c.dataset.o]=!ovl[c.dataset.o];
   c.classList.toggle('on',ovl[c.dataset.o]); buildMap();
+  if(c.dataset.o==='wxanim'){                             // LOOP: (re)load frame history; needs DOPPLER on
+    if(ovl.wxanim && !ovl.wx){ ovl.wx=true;
+      document.querySelectorAll('.rchip[data-o="wx"]').forEach(x=>x.classList.add('on')); }
+    wxAnimIdx=0; radarRefresh();
+  }
 }));
 // SPIN: toggle the slow cinematic auto-orbit in the 3-D view
 // two vertical rotate buttons: ↺ orbit left, ↻ orbit right; click the lit one to stop
@@ -4016,7 +4132,13 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     px.fillText('COCKPIT VIEW · '+a.cs+(a.t?' · '+a.t:'')+'   —   TRAFFIC & FIELDS SHOWN IN PERSPECTIVE · ESC TO EXIT', CXc, H-20);
   }
 
-  function loop(){ if(!open) return; draw(); raf=requestAnimationFrame(loop); }
+  let hudAttractAt=0;
+  function loop(){ if(!open) return;
+    if(ovl.attract && performance.now()-hudAttractAt>10000){   // screensaver: rotate through interesting traffic
+      hudAttractAt=performance.now(); const p=bestInterest(selected);
+      if(p){ selected=p; const s=att(selected); pB=s.bank; pP=s.fpa; try{updPanel();}catch(_){} }
+    }
+    draw(); raf=requestAnimationFrame(loop); }
   function openHUD(){
     if(!selected) return;
     // cache the baked terrain pixels once for fast per-cell colours

@@ -140,12 +140,18 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
 - **DOPPLER** — live weather radar (NEXRAD) painted on the map; in the **3-D** view it's rendered
   as a soft translucent **volume** with real vertical depth (the radar texture stacked in altitude
   layers), so storms stand up in perspective.
+- **LOOP** — animate the last ~hour of radar frames so storms visibly move (turns DOPPLER on).
 - **SIG/AIRMET** — live SIGMETs & AIRMETs (hazard advisory areas).
+- **WX DOTS** — colour each nearby airport by **flight category** from its METAR — a coloured
+  halo ring: green **VFR** / blue **MVFR** / red **IFR** / magenta **LIFR**.
 
 ### RANGE — how far the map reaches
 - **10 / 15 / 25 / 50** — map radius in nautical miles.
 - **AUTO** — auto-zooms to follow inbound traffic.
 - **≤180** — show only traffic at/below 18,000 ft (hides high jets passing overhead).
+- **ATTRACT** — hands-off "showpiece" mode: pulses a spotlight ring on **interesting** traffic
+  (emergency squawks red / military cyan / heavies amber) and auto-follows the most interesting
+  aircraft; with the cockpit view open it cycles through them like a screensaver.
 
 ### VIEW — 2-D or 3-D
 - **2D** — flat top-down radar.
@@ -162,6 +168,9 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
   right. Dragging the view stops it; tap the lit one again to stop, the other to reverse.
 - **WAVES** — animate a shimmering sun-glint on the water. Works on the **EFIS map** and in
   the **3-D view** (drifting sun-glitter on the sea/lakes). *(on by default)*
+- **SUN** — **day/night lighting** from the real sun position over the field: the map warms at
+  golden hour and dims to a night palette after local sunset, with a soft terminator sweeping
+  across as the day turns. Works in 2-D and 3-D. *(pure math, no data feed)*
 
 ### TRAIL — breadcrumb tails behind each plane
 - **TRAIL** — click the label to toggle trails on/off (off leaves just a few small dots).
