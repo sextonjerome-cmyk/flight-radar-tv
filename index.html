@@ -227,8 +227,8 @@
   #pfdMapGrp{display:inline-flex;flex-direction:column;gap:3px;}       /* two compact rows */
   #pfdMapGrp .maprow{display:inline-flex;gap:3px;align-items:center;}
   #pfdMapGrp .mapc{padding:2px 7px;font-size:11px;letter-spacing:.04em;}
-  #pfdMapGrp .vstep2{display:inline-flex;flex-direction:column;gap:2px;}
-  #pfdMapGrp .vstep2 .rchip{padding:1px 7px;font-size:12px;line-height:13px;}  /* two stacked ≈ one normal button tall */
+  #pfdMapGrp .vstep2{display:inline-flex;flex-direction:column;gap:2px;}    /* +/- stacked */
+  #pfdMapGrp .vstep2 .rchip{padding:0 7px;font-size:12px;line-height:14px;}
   #pfdMapGrp .hpct{font-size:11px;color:#9fb2bd;min-width:30px;font-variant-numeric:tabular-nums;}
   #pfdTitle small{color:#7A8792;font-weight:400;font-size:15px;letter-spacing:.02em;}
   #pfdClose{font-size:15px;}
@@ -286,10 +286,10 @@
           </span>
           <span class="maprow">
             <span class="rchip mapc" data-hmix="sec" tabindex="0">SECT</span>
-            <span class="vstep2"><span class="rchip" data-hmixu="sec" tabindex="0" aria-label="Sectional opacity up">+</span><span class="rchip" data-hmixd="sec" tabindex="0" aria-label="Sectional opacity down">–</span></span>
+            <span class="vstep2"><span class="rchip" data-hmixd="sec" tabindex="0" aria-label="Sectional opacity down">–</span><span class="rchip" data-hmixu="sec" tabindex="0" aria-label="Sectional opacity up">+</span></span>
             <span class="hpct" id="hmixsecv">0%</span>
             <span class="rchip mapc" data-hmix="ifr" tabindex="0">IFR</span>
-            <span class="vstep2"><span class="rchip" data-hmixu="ifr" tabindex="0" aria-label="IFR low opacity up">+</span><span class="rchip" data-hmixd="ifr" tabindex="0" aria-label="IFR low opacity down">–</span></span>
+            <span class="vstep2"><span class="rchip" data-hmixd="ifr" tabindex="0" aria-label="IFR low opacity down">–</span><span class="rchip" data-hmixu="ifr" tabindex="0" aria-label="IFR low opacity up">+</span></span>
             <span class="hpct" id="hmixifrv">0%</span>
           </span>
         </span>
@@ -1258,6 +1258,28 @@ function drawScene3Overlays(fam){
     ctx.strokeStyle='rgba('+col+',.6)'; ctx.lineWidth=1.4; ctx.setLineDash([5,5]);
     polyline(s0.pts,p=>proj3(p[0],p[1], s0.ce||10000),true); ctx.setLineDash([]);
   }
+  // SIGMET / AIRMET as translucent hazard volumes: shaded walls from floor to top,
+  // a filled ceiling shelf and a dashed outline, with the label billboarded at the top
+  if(ovl.sig) for(const s of SIGS){
+    if(s.pts.length<3 || centreFar(s.pts)) continue;
+    const col=s.col, flo=s.lo||0, ceil=s.hi||30000;
+    ctx.fillStyle='rgba('+col+',.07)';                      // vertical walls
+    for(let i=0;i<s.pts.length;i++){ const p=s.pts[i], q=s.pts[(i+1)%s.pts.length];
+      const b0=proj3(p[0],p[1],flo), t0=proj3(p[0],p[1],ceil),
+            b1=proj3(q[0],q[1],flo), t1=proj3(q[0],q[1],ceil);
+      if(b0&&t0&&b1&&t1){ ctx.beginPath(); ctx.moveTo(b0.x,b0.y); ctx.lineTo(t0.x,t0.y);
+        ctx.lineTo(t1.x,t1.y); ctx.lineTo(b1.x,b1.y); ctx.closePath(); ctx.fill(); } }
+    fillRing(s.pts,p=>proj3(p[0],p[1],ceil),'rgba('+col+',.10)');   // ceiling shade
+    ctx.strokeStyle='rgba('+col+',.85)'; ctx.lineWidth=1.8; ctx.setLineDash([12,6]);
+    polyline(s.pts,p=>proj3(p[0],p[1],ceil),true);
+    ctx.lineWidth=1.4; ctx.strokeStyle='rgba('+col+',.5)';
+    polyline(s.pts,p=>proj3(p[0],p[1],flo),true); ctx.setLineDash([]);
+    let la=0,lo=0; for(const p of s.pts){ la+=p[0]; lo+=p[1]; }
+    const lab=proj3(la/s.pts.length,lo/s.pts.length,ceil);
+    if(lab){ ctx.font='600 12px '+fam; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+      ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.lineWidth=3; ctx.lineJoin='round'; ctx.strokeText(s.t,lab.x,lab.y-4);
+      ctx.fillStyle='rgba('+col+',.95)'; ctx.fillText(s.t,lab.x,lab.y-4); ctx.textAlign='left'; }
+  }
   // Approaches climb the glideslope in 3D (rising from the runway at the GS angle):
   // ILS = localizer feather ramp; RNAV = dashed centreline. Fixes sit at their GS altitude
   // with a faint drop-line to the ground.
@@ -1741,7 +1763,11 @@ async function sigRefresh(){
       else if(hz.includes('IFR')){col='155,135,255';name='AIRMET SIERRA';}
       else if(hz.includes('TURB')){name='AIRMET TANGO';}
       else if(hz.includes('ICE')){col='120,170,255';name='AIRMET ZULU';}
-      out.push({t:(name+(hz&&!name.includes(hz)?' · '+hz:'')), col, pts});
+      // altitude band (ft) for the 3-D volume — aviationweather gives hundreds of ft
+      const alt=v=>{ v=+v; return isFinite(v)&&v>0 ? v*100 : null; };
+      let lo=alt(s.altitudeLow1)??0, hi=alt(s.altitudeHi1)??alt(s.altitudeLow2)??35000;
+      if(hi<=lo) hi=lo+15000;
+      out.push({t:(name+(hz&&!name.includes(hz)?' · '+hz:'')), col, pts, lo, hi});
     }
     SIGS=out; sigLoaded=true; scheduleBuild();
   }catch(e){ if(!sigLoaded) setTimeout(sigRefresh,30000); }  // retry soon on a failed first load
@@ -2166,7 +2192,7 @@ async function typePhoto(a){
   if(!term) return null;
   // "google the type + plane, take the first picture": search Wikipedia for the type and
   // return the first result that actually HAS a lead image (top result often has none).
-  for(const q of [term+' aircraft', term+' airplane']){
+  for(const q of [term+' airplane', term+' aircraft']){
     try{
       const u='https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='
         +encodeURIComponent(q)+'&gsrlimit=8&prop=pageimages&piprop=thumbnail'
@@ -2928,6 +2954,10 @@ document.getElementById('homeReset').addEventListener('click',resetHome);
     el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn();} }); };
   key(chg,openBox); key(goBtn,start); key(cancelBtn,closeBox);
   input.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();start();} });
+  // double-click the airport code (top-left) to open the change-airport window too
+  const ident=document.getElementById('identCode');
+  if(ident){ ident.style.cursor='pointer'; ident.title='Double-click to change airport';
+    ident.addEventListener('dblclick',openBox); }
 })();
 
 // ---- ‹ › arrows beside the ident: recenter the map on the nearby airports drawn on
