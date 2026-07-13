@@ -284,13 +284,27 @@ class Handler(SimpleHTTPRequestHandler):
                            "model": field("Model")}).encode()
 
     def get_adsb(self):
-        err = None
-        for u in ADSB_URLS:
+        # Race the feeds concurrently and return the first success. A single feed that
+        # HANGS (e.g. adsb.lol down: multiple IPs each timing out ~= 60 s) must not block
+        # the working one, or the browser times out and shows no traffic.
+        import threading
+        results, err = {}, {}
+        done = threading.Event()
+        def try_url(i, u):
             try:
-                return fetch(u, 8)
+                d = fetch(u, 6)
+                if d:
+                    results[i] = d; done.set()
             except Exception as e:
-                err = e
-        raise err
+                err[i] = e
+        threads = [threading.Thread(target=try_url, args=(i, u), daemon=True)
+                   for i, u in enumerate(ADSB_URLS)]
+        for t in threads: t.start()
+        done.wait(timeout=8)
+        for i in range(len(ADSB_URLS)):          # prefer the primary feed when both answer
+            if i in results:
+                return results[i]
+        raise (err.get(0) or err.get(1) or Exception("adsb: all feeds failed"))
 
     def send_json(self, data):
         self.send_response(200)

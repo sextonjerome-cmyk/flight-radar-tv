@@ -127,6 +127,26 @@ def runways_for(icao):
             out[lbl] = h
     return out
 
+def runway_lines(icao):
+    """[{'a':[lat,lon],'b':[lat,lon]}, ...] runway endpoint segments from OurAirports —
+    so a non-US home field (absent from the FAA CIFP) can still draw its runways."""
+    try:
+        txt = http("https://davidmegginson.github.io/ourairports-data/runways.csv",
+                   ua="Mozilla/5.0").decode("utf8", "replace")
+    except Exception:
+        return []
+    out = []
+    for r in csv.DictReader(io.StringIO(txt)):
+        if r["airport_ident"].upper() != icao.upper():
+            continue
+        try:
+            a = [float(r["le_latitude_deg"]), float(r["le_longitude_deg"])]
+            b = [float(r["he_latitude_deg"]), float(r["he_longitude_deg"])]
+        except (ValueError, KeyError):
+            continue
+        out.append({"a": a, "b": b})
+    return out
+
 def nearest_wx(center, icao, limit=16, max_nm=95):
     """Nearest airports likely to have a METAR (4-letter ICAO, real service)."""
     cand = []
@@ -561,6 +581,14 @@ def build_nav(icao, cfg):
     center = (cfg["center"]["lat"], cfg["center"]["lon"])
     bbox = region_bbox(center)
     nav = parse_cifp(center, bbox)
+    # ensure the HOME field itself is in the airport list — non-US fields (e.g. CYYZ) are
+    # absent from the US FAA CIFP, so add it from OurAirports so it renders on the map
+    hid = icao.strip().upper()
+    if not any(a["id"].strip().upper() == hid for a in nav["apts"]):
+        nav["apts"].append({"id": hid, "lat": center[0], "lon": center[1],
+                            "name": cfg["center"].get("name", hid), "rwys": runway_lines(icao)})
+        nav["apts"].sort(key=lambda a: a["id"])
+        print(f"  + added home field {hid} to airports (not in FAA CIFP)")
     print(f"  airports {len(nav['apts'])}, vors {len(nav['vors'])}, "
           f"wpts {len(nav['wpts'])}, airways {len(nav['awys'])}, approaches {len(nav['appr'])}")
     nav["sua"] = parse_sua(bbox)
