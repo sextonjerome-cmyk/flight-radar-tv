@@ -221,8 +221,15 @@
   .pfdNav:hover,.pfdNav:focus{color:#eaf4fb;background:rgba(30,70,110,.6);outline:none;}
   #pfdBar{display:flex;align-items:center;gap:12px;margin:2px 6px 6px;flex:none;}
   #pfdTitle{font-size:22px;font-weight:600;color:#E4EBF2;letter-spacing:.05em;flex:1;}
-  #pfdMapGrp{display:inline-flex;gap:4px;}
-  #pfdMapGrp .mapc{padding:5px 9px;font-size:13px;letter-spacing:.06em;}
+  #pfdSkin{font-weight:600;}                          /* filled; colour set inline (green=HUD, purple=G1000) */
+  #pfdSkin:hover{filter:brightness(1.12);}
+  #pfdSkin:focus{outline:none;}
+  #pfdMapGrp{display:inline-flex;flex-direction:column;gap:3px;}       /* two compact rows */
+  #pfdMapGrp .maprow{display:inline-flex;gap:3px;align-items:center;}
+  #pfdMapGrp .mapc{padding:2px 7px;font-size:11px;letter-spacing:.04em;}
+  #pfdMapGrp .vstep2{display:inline-flex;flex-direction:column;gap:2px;}
+  #pfdMapGrp .vstep2 .rchip{padding:1px 7px;font-size:12px;line-height:13px;}  /* two stacked ≈ one normal button tall */
+  #pfdMapGrp .hpct{font-size:11px;color:#9fb2bd;min-width:30px;font-variant-numeric:tabular-nums;}
   #pfdTitle small{color:#7A8792;font-weight:400;font-size:15px;letter-spacing:.02em;}
   #pfdClose{font-size:15px;}
   #pfdCanvas{display:block;width:auto;height:auto;max-width:100%;
@@ -272,11 +279,19 @@
       <div id="pfdBar">
         <span id="pfdTitle">PFD</span>
         <span id="pfdMapGrp" title="Pick the basemap / chart draped on the terrain">
-          <span class="rchip mapc" data-map="efis" tabindex="0">EFIS</span>
-          <span class="rchip mapc" data-map="sat"  tabindex="0">SAT</span>
-          <span class="rchip mapc" data-map="dark" tabindex="0">DARK</span>
-          <span class="rchip mapc" data-map="sec"  tabindex="0">SECT</span>
-          <span class="rchip mapc" data-map="ifr"  tabindex="0">IFR</span>
+          <span class="maprow">
+            <span class="rchip mapc" data-hbase="efis" tabindex="0">EFIS</span>
+            <span class="rchip mapc" data-hbase="sat"  tabindex="0">SAT</span>
+            <span class="rchip mapc" data-hbase="dark" tabindex="0">DARK</span>
+          </span>
+          <span class="maprow">
+            <span class="rchip mapc" data-hmix="sec" tabindex="0">SECT</span>
+            <span class="vstep2"><span class="rchip" data-hmixu="sec" tabindex="0" aria-label="Sectional opacity up">+</span><span class="rchip" data-hmixd="sec" tabindex="0" aria-label="Sectional opacity down">–</span></span>
+            <span class="hpct" id="hmixsecv">0%</span>
+            <span class="rchip mapc" data-hmix="ifr" tabindex="0">IFR</span>
+            <span class="vstep2"><span class="rchip" data-hmixu="ifr" tabindex="0" aria-label="IFR low opacity up">+</span><span class="rchip" data-hmixd="ifr" tabindex="0" aria-label="IFR low opacity down">–</span></span>
+            <span class="hpct" id="hmixifrv">0%</span>
+          </span>
         </span>
         <span class="rchip" id="pfdSkin" tabindex="0"
               title="Switch between the fighter-style HUD and a Garmin-style glass PFD">G1000</span>
@@ -4276,27 +4291,47 @@ chipKeys(document.getElementById('tipsTog'),()=>{
       terrPix=d.data; tRows=terrCvs.height; tCols=terrCvs.width; } }catch(e){ terrPix=null; }
     const s=att(selected); pB=s.bank; pP=s.fpa;
     try{ fetchTerrain(); }catch(e){}                       // ensure GPU mountains are loaded for the cockpit view
-    try{ syncMapBtn(); }catch(e){}                         // reflect the current basemap on the MAP chip
+    try{ syncSkin(); applySkinBase(); }catch(e){}          // set the view's default basemap + button label
     open=true; modal.classList.add('show'); closeBtn.focus(); loop();
   }
   function closeHUD(){ open=false; modal.classList.remove('show'); if(raf) cancelAnimationFrame(raf); }
   chipKeys(btn,openHUD); chipKeys(closeBtn,closeHUD);
   // G1000 skin toggle (fighter HUD ↔ Garmin-style glass PFD), remembered across sessions
   const skinBtn=document.getElementById('pfdSkin');
-  skinBtn.classList.toggle('on', skin==='g1000');
+  const SKIN_BASE={hud:'sat', g1000:'efis'};        // each view's default basemap
+  function syncSkin(){                              // label = the view it switches TO; fill follows the label
+    const g1000=skin==='g1000';
+    skinBtn.textContent = g1000?'HUD':'G1000';
+    if(g1000){ skinBtn.style.background='#3aa85c'; skinBtn.style.borderColor='#7fe6a0'; skinBtn.style.color='#f2fff6'; }  // HUD → light green
+    else     { skinBtn.style.background='#7a3ec0'; skinBtn.style.borderColor='#b596ea'; skinBtn.style.color='#f7f2ff'; }  // G1000 → purple
+  }
+  function applySkinBase(){                          // apply that view's default basemap
+    base=SKIN_BASE[skin]||base;
+    document.querySelectorAll('.rchip[data-b]').forEach(x=>x.classList.toggle('on', x.dataset.b===base));  // sync main panel
+    try{ buildMap(); }catch(e){}
+    if(typeof syncMapBtn==='function') syncMapBtn();
+  }
+  syncSkin();
   chipKeys(skinBtn,()=>{ skin=(skin==='g1000')?'hud':'g1000';
-    skinBtn.classList.toggle('on', skin==='g1000');
+    syncSkin(); applySkinBase();
     try{ localStorage.setItem('frtv_pfdskin', skin); }catch(e){} });
-  // MAP chips: pick the basemap/chart draped on the cockpit terrain without leaving the view.
-  // Uses the same global base/mix as the 2-D/3-D map, so the terrain drape updates live.
-  const MAPSET={ efis:()=>{base='efis';mix.sec=0;mix.ifr=0;}, sat:()=>{base='sat';mix.sec=0;mix.ifr=0;},
-                 dark:()=>{base='dark';mix.sec=0;mix.ifr=0;}, sec:()=>{base='efis';mix.sec=100;mix.ifr=0;},
-                 ifr:()=>{base='efis';mix.sec=0;mix.ifr=100;} };
-  const curMap=()=> base==='sat'?'sat' : base==='dark'?'dark' : mix.ifr>0?'ifr' : mix.sec>0?'sec' : 'efis';
-  function syncMapBtn(){ document.querySelectorAll('#pfdMapGrp .mapc')
-    .forEach(el=>el.classList.toggle('on', el.dataset.map===curMap())); }
-  document.querySelectorAll('#pfdMapGrp .mapc').forEach(el=>chipKeys(el,()=>{
-    (MAPSET[el.dataset.map]||MAPSET.efis)(); syncMapBtn(); try{ buildMap(); }catch(e){} }));  // buildMap keeps 2-D/3-D in sync
+  // MAP controls: pick the basemap (EFIS/SAT/DARK) and fade SECTIONAL/IFR charts onto the cockpit
+  // terrain without leaving the view. Uses the same global base/mix as the 2-D/3-D map (so the
+  // terrain drape updates live) and mirrors state to the main panel's chips.
+  function syncMapBtn(){
+    document.querySelectorAll('#pfdMapGrp [data-hbase]').forEach(el=>el.classList.toggle('on', el.dataset.hbase===base));
+    document.querySelectorAll('#pfdMapGrp [data-hmix]').forEach(el=>el.classList.toggle('on', mix[el.dataset.hmix]>0));
+    const sv=document.getElementById('hmixsecv'), iv=document.getElementById('hmixifrv');
+    if(sv) sv.textContent=mix.sec+'%'; if(iv) iv.textContent=mix.ifr+'%';
+  }
+  document.querySelectorAll('#pfdMapGrp [data-hbase]').forEach(el=>chipKeys(el,()=>{
+    base=el.dataset.hbase;
+    document.querySelectorAll('.rchip[data-b]').forEach(x=>x.classList.toggle('on', x.dataset.b===base)); // sync main panel
+    try{ buildMap(); }catch(e){} syncMapBtn(); }));
+  document.querySelectorAll('#pfdMapGrp [data-hmix]').forEach(el=>chipKeys(el,()=>{
+    const k=el.dataset.hmix; setMix(k, mix[k]>0?0:(mixLast[k]||30)); syncMapBtn(); }));   // toggle off / restore
+  document.querySelectorAll('#pfdMapGrp [data-hmixu]').forEach(el=>chipKeys(el,()=>{ setMix(el.dataset.hmixu, mix[el.dataset.hmixu]+10); syncMapBtn(); }));
+  document.querySelectorAll('#pfdMapGrp [data-hmixd]').forEach(el=>chipKeys(el,()=>{ setMix(el.dataset.hmixd, mix[el.dataset.hmixd]-10); syncMapBtn(); }));
   syncMapBtn();
   // prev/next-aircraft arrows: fly the next/previous plane without leaving the HUD
   function cycleAC(dir){
