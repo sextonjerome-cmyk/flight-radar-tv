@@ -224,6 +224,8 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
 ### Clicking around
 - **Click a plane** — selects it: its photo, type, route, altitude, speed, and heading fill
   the panel, and the **▣ HUD** button (in the VIEW row) lights up.
+- **Click the photo** — enlarges just the plane picture in place; click again (or press Esc)
+  to shrink it. Photos are matched by the aircraft's tail number for accuracy.
 - **Click an airport** — recenters on it and shows its tower/CTAF frequency + weather.
 
 ### What the colors mean
