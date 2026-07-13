@@ -145,6 +145,8 @@ class Handler(SimpleHTTPRequestHandler):
                 "done": _setup["done"], "ok": _setup["ok"],
                 "lines": _setup["lines"][-30:],
             }).encode())
+        if path == "/api/dem":
+            return self.get_dem()
         if path == "/api/adsb":
             return self.cached("adsb", 4, self.get_adsb)
         if path == "/api/reg":
@@ -238,6 +240,34 @@ class Handler(SimpleHTTPRequestHandler):
             if hit:                       # stale beats nothing
                 return self.send_json(hit[1])
             self.send_error(502, str(e))
+
+    def get_dem(self):
+        # proxy AWS Terrarium elevation tiles (keyless) so the 3-D view can load
+        # high-resolution terrain without CORS/mixed-content trouble
+        q = parse_qs(urlparse(self.path).query)
+        try:
+            z = int((q.get("z") or ["0"])[0]); x = int((q.get("x") or ["0"])[0]); y = int((q.get("y") or ["0"])[0])
+        except ValueError:
+            return self.send_error(400, "bad tile")
+        if not (0 <= z <= 15 and 0 <= x < 2 ** z and 0 <= y < 2 ** z):
+            return self.send_error(400, "tile out of range")
+        key = f"dem:{z}/{x}/{y}"
+        now = time.time(); hit = _cache.get(key)
+        if not (hit and now - hit[0] < 604800):
+            try:
+                data = fetch(f"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png", 15)
+                _cache[key] = (now, data); hit = _cache[key]
+            except Exception as e:
+                if not hit:
+                    return self.send_error(502, str(e))
+        self.send_response(200)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Cache-Control", "public, max-age=604800")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(hit[1])))
+        self.end_headers()
+        try: self.wfile.write(hit[1])
+        except (BrokenPipeError, ConnectionResetError, OSError): pass
 
     def get_reg(self, n):
         # FAA aircraft registry lookup by N-number → make / model (covers

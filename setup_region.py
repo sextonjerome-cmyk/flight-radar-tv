@@ -372,12 +372,16 @@ def parse_cifp(center, bbox):
                     (l[26:29], l[29:34].strip(), l[34:38], l[39:43]))
 
     def mate(rw):
-        num = (int(rw[2:4]) + 18 - 1) % 36 + 1
+        try:
+            num = (int(rw[2:4]) + 18 - 1) % 36 + 1
+        except (ValueError, IndexError):
+            return None                          # malformed runway id (e.g. non-US CIFP quirks)
         sfx = {"L": "R", "R": "L", "C": "C", "": ""}.get(rw[4:].strip(), "")
         return f"RW{num:02d}{sfx}"
     for (icao, rw), v in rw_ix.items():
-        if icao in apts and rw < mate(rw) and (icao, mate(rw)) in rw_ix:
-            o = rw_ix[(icao, mate(rw))]
+        m = mate(rw)
+        if icao in apts and m and rw < m and (icao, m) in rw_ix:
+            o = rw_ix[(icao, m)]
             apts[icao]["rwys"].append({"a": [v["lat"], v["lon"]], "b": [o["lat"], o["lon"]]})
 
     def resolve(fix, fsec, icao=None):
@@ -591,10 +595,10 @@ def overpass(query, timeout=180, cache=None):
              "https://overpass.kumi.systems/api/interpreter",
              "https://overpass.osm.ch/api/interpreter")
     body = urllib.parse.urlencode({"data": query}).encode()
-    per_try = min(timeout, 35)                                   # don't let one slow
-    for attempt in range(6):                                     # mirror hang for minutes
-        gap = time.time() - _last_overpass[0]                    # be polite: space calls
-        if gap < 5: time.sleep(5 - gap)
+    per_try = min(timeout, 75)                                   # big water responses (e.g. the
+    for attempt in range(6):                                     # Great Lakes) can be 40+ MB —
+        gap = time.time() - _last_overpass[0]                    # give the download time, and space
+        if gap < 10: time.sleep(10 - gap)                        # calls so the primary doesn't 429
         host = hosts[attempt % len(hosts)]
         name = host.split("/")[2]
         print(f"    trying {name} (attempt {attempt+1}/6)…", flush=True)
@@ -602,9 +606,16 @@ def overpass(query, timeout=180, cache=None):
             d = http(host, data=body, timeout=per_try)
             _last_overpass[0] = time.time()
             j = json.loads(d)
-            if cf and j.get("elements"):
-                cf.parent.mkdir(parents=True, exist_ok=True)
-                cf.write_text(json.dumps(j), encoding="utf8")
+            if j.get("elements"):
+                if cf:
+                    cf.parent.mkdir(parents=True, exist_ok=True)
+                    cf.write_text(json.dumps(j), encoding="utf8")
+                return j
+            # an empty result is often a flaky/incomplete mirror (osm.ch does this for the big
+            # lake relations), not a genuine "no water" — give the better mirrors a few more tries
+            if attempt < 3:
+                print(f"      {name}: returned nothing — trying another mirror…", flush=True)
+                time.sleep(4); continue
             return j
         except Exception as e:
             _last_overpass[0] = time.time()
@@ -819,7 +830,7 @@ def build_map(cfg, args):
         print("      If this airport should have coastline, lakes or rivers, just run it")
         print(f"      again in a minute:  python setup_region.py {_id} --rebuild")
 
-    print("  terrain elevation (OpenTopoData NED)…", flush=True)
+    print("  terrain elevation (OpenTopoData Mapzen/Terrarium — global, matches the 3-D view)…", flush=True)
     elev = fetch_elev(S, W, N, E)
     out = {"bbox": [S, W, N, E], "water": water_s, "islands": islands_s,
            "coasts": coasts_s, "rivers": rivers_s, "lakes": lakes_s, "elev": elev}
@@ -835,7 +846,7 @@ def fetch_elev(S, W, N, E, ROWS=64, COLS=80):
         body = json.dumps({"locations": locs}).encode()
         for attempt in range(4):
             try:
-                j = json.loads(http("https://api.opentopodata.org/v1/ned10m", data=body, timeout=60,
+                j = json.loads(http("https://api.opentopodata.org/v1/mapzen", data=body, timeout=60,
                                     headers={"Content-Type": "application/json"}))
                 grid += [(res["elevation"] or 0) for res in j["results"]]
                 break

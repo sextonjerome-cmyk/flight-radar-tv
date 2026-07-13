@@ -120,10 +120,12 @@ password. (That password gate isn't built in yet; add it when you host it online
 The buttons live in the **CONTROLS** box (top-left of the screen) and the **info panel**
 (right side). Click the **CONTROLS** header to collapse or expand the box.
 
-### MAP — base map style
+### MAP — base map style + chart overlays
 - **EFIS** — the glass-cockpit look: dark map, terrain shading, water. *(default)*
 - **SAT HYB** — satellite imagery with labels.
 - **DARK** — a plain dark map.
+- **SECTIONAL / IFR LOW** — fade an FAA paper chart over the map; the stacked **+ / –**
+  step its opacity by 10%.
 
 ### SHOW — map overlays (each toggles on/off)
 - **ASP** — controlled airspace outlines (Class B / C / D).
@@ -135,7 +137,9 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
 - **AWY** — airways (the "highways in the sky").
 
 ### WX — weather
-- **DOPPLER** — live weather radar (NEXRAD) painted on the map.
+- **DOPPLER** — live weather radar (NEXRAD) painted on the map; in the **3-D** view it's rendered
+  as a soft translucent **volume** with real vertical depth (the radar texture stacked in altitude
+  layers), so storms stand up in perspective.
 - **SIG/AIRMET** — live SIGMETs & AIRMETs (hazard advisory areas).
 
 ### RANGE — how far the map reaches
@@ -143,20 +147,27 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
 - **AUTO** — auto-zooms to follow inbound traffic.
 - **≤180** — show only traffic at/below 18,000 ft (hides high jets passing overhead).
 
-### CHART — fade FAA paper charts over the map
-- **SECTIONAL** — the VFR sectional chart; **–/+** step its opacity by 10%.
-- **IFR LOW** — the IFR low-altitude enroute chart; **–/+** step its opacity.
-
 ### VIEW — 2-D or 3-D
 - **2D** — flat top-down radar.
-- **3D** — tilted, Tacview-style view: aircraft float at altitude, with glidepaths and
-  3-D airspace volumes.
-- **WAVES** — animate a shimmering sun-glint on the water (EFIS map).
+- **3D** — a **true-perspective orbit view** (Tacview-style): real 3-D terrain with
+  mountains standing up, **water** (sea, lakes, rivers) painted in, aircraft floating at
+  their real altitude on altitude poles, the runways, and range rings on the ground.
+  Terrain is **elevation-coloured** — green valleys → olive → brown → grey rock → snow
+  peaks. The terrain grows with the **RANGE** you pick and softly dissolves into the haze
+  at its edges, so from any angle it fills the horizon instead of sitting on a slab.
+  **Drag to orbit, mouse-wheel to zoom** — it slowly auto-orbits until you touch it.
+  The **SHOW** overlays (airspace, ILS/RNAV approaches, airways, waypoints, navaids) are drawn
+  in perspective too — airspace as standing 3-D volumes.
+- **↺ / ↻ (rotate)** — two stacked buttons that slowly **auto-orbit** the 3-D view left or
+  right. Dragging the view stops it; tap the lit one again to stop, the other to reverse.
+- **WAVES** — animate a shimmering sun-glint on the water. Works on the **EFIS map** and in
+  the **3-D view** (drifting sun-glitter on the sea/lakes). *(on by default)*
 
 ### TRAIL — breadcrumb tails behind each plane
-- **– / +** — set how many **minutes** of fading tail each aircraft leaves behind it (0 =
-  off). Longer trails show more of where planes have been — turns, holding, the whole
-  approach. The selected plane's trail is drawn brightest.
+- **TRAIL** — click the label to toggle trails on/off (off leaves just a few small dots).
+- **+ / –** (stacked) — set how many **minutes** of fading tail each aircraft leaves behind
+  it, in **2.5-minute** steps. Longer trails show more of where planes have been — turns,
+  holding, the whole approach. The selected plane's trail is drawn brightest.
 
 ### FIELD
 - **CHANGE AIRPORT** — type a 4-letter code to download and switch to a new airport.
@@ -172,20 +183,38 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
 - **＋ ADD ATC CHANNEL** — add an Approach/Center feed by name (checked live before adding).
 - **VOL** — volume slider.
 
-### HUD VIEW — fly along inside the plane (info panel)
-- **▣ HUD VIEW** — with a plane selected, drops you into a full-screen **first-person cockpit
-  view**, flying along the aircraft's track and flight path, with an F/A-18-style green HUD:
-  heading tape, pitch ladder, velocity vector, bank scale, and boxed **ground speed / altitude**
-  (with height above ground), plus **Mach** and **G**. The world outside is drawn in true
-  perspective — **elevation-shaded terrain**, other **traffic** (with each one's height above/below
-  you and distance), scattered **airport identifiers**, and your home field's **runway highlighted
-  in yellow** with an extended centerline and a target box. Attitude is *derived* from the ADS-B
-  track and climb rate (there's no real attitude in the data) and speed is **ground** speed, so
-  it's a realistic-looking cockpit view — not an instrument. Press **CLOSE** or **Esc** to exit.
+### ▣ HUD — fly along inside the plane (button top-right of the map)
+- **▣ HUD** — with a plane selected, drops you into a near-fullscreen **first-person cockpit
+  view** (or **triple-click a plane** on the map to jump straight in),
+  flying along the aircraft's track and flight path, with an F/A-18-style green HUD:
+  heading tape, pitch ladder, velocity vector, bank scale, moving **airspeed and altitude scales**
+  (with height above ground), **Mach** and **G**, and a lower-right **destination block** (bearing,
+  range and time-to-go to your home field). When the plane is **established on an ILS** into your
+  field, **glideslope and localizer needles** appear. The world outside is the **real GPU terrain**
+  in true perspective — actual **mountains standing up across a wide horizon**, water, other
+  **traffic** (with each one's height above/below you and distance), scattered **airport
+  identifiers**, and your home field's **runway** (grey with a yellow contour) with an extended
+  centerline and a target box. Attitude is *derived* from the ADS-B track and climb rate (there's no
+  real attitude in the data) and speed is **ground** speed, so it's a realistic-looking cockpit view
+  — not an instrument. **‹ ›** arrows on the sides fly the previous / next aircraft. Press **CLOSE**
+  or **Esc** to exit. *(Tip: add `#hud` to the address to boot straight into the cockpit view on the
+  nearest airborne aircraft — handy for a TV/kiosk.)*
+- **G1000** (button in the HUD bar) — switches the cockpit view between the fighter-style HUD and a
+  **Garmin-style glass PFD**: blue-over-brown **synthetic-vision terrain** (the same real GPU
+  mountains) behind a roll arc, white pitch ladder and yellow aircraft symbol, grey **airspeed and
+  altitude tapes** (Mach under the airspeed, **barometric setting** and height-above-ground under the
+  altitude) with a vertical-speed scale, and a rotating **HSI compass** with a magenta course needle.
+  Its top bar is laid out like a real avionics radio stack — **COM1 / COM2** (active + standby, from
+  the ATC feeds we monitor), **NAV1 (ILS)** and **NAV2 (VOR)** frequencies, and the magenta GPS
+  **waypoint bearing/range** to your field with the **ATIS** letter. A small **north-up moving-map**
+  sits bottom-left, and the plane's **callsign / squawk / route** (each its own colour) bottom-right.
+  **Glideslope + localizer needles** appear when it's established on an ILS. Your choice is
+  remembered. *(Add `#g1000` to the address — e.g. `#hud&g1000` — to boot straight into it; plain
+  `#hud` looks for a plane on approach so you get the needles.)*
 
 ### Clicking around
 - **Click a plane** — selects it: its photo, type, route, altitude, speed, and heading fill
-  the panel, and the **HUD VIEW** button lights up.
+  the panel, and the **▣ HUD** button (in the VIEW row) lights up.
 - **Click an airport** — recenters on it and shows its tower/CTAF frequency + weather.
 
 ### What the colors mean

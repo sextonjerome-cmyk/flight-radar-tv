@@ -31,19 +31,25 @@
          display:flex;background:var(--bg);}
 
   #radarWrap{position:relative;width:1560px;height:1080px;flex:none;}
+  #radar3d{position:absolute;inset:0;width:1560px;height:1080px;display:none;}
   #radar{position:absolute;inset:0;width:1560px;height:1080px;cursor:crosshair;}
 
   /* --- overlays on the radar --- */
   .ident{position:absolute;left:28px;top:22px;color:var(--dim);font-size:20px;
          letter-spacing:.18em;text-shadow:0 0 6px #000,0 1px 3px #000;}
   .ident b{color:#B9C2CA;font-weight:600;}
+  .ident{display:inline-flex;align-items:center;gap:10px;}
+  .identNav{color:#7C8894;font-size:26px;line-height:1;cursor:pointer;user-select:none;
+            padding:0 4px;border-radius:3px;transition:color .12s,background .12s;}
+  .identNav:hover,.identNav:focus{color:#EAF0F6;background:rgba(90,156,230,.22);outline:none;}
   .ctlBox{position:absolute;left:28px;bottom:26px;display:flex;flex-direction:column;gap:9px;
           background:rgba(0,0,0,.55);border:1px solid rgba(57,66,75,.7);border-radius:4px;
           padding:12px 14px;}
   .ctlBody{display:flex;flex-direction:column;gap:9px;}
   .ctlBox.collapsed .ctlBody{display:none;}
   .ctlTog{color:var(--dim);font-size:13px;letter-spacing:.14em;cursor:pointer;
-          user-select:none;align-self:flex-start;}
+          user-select:none;align-self:flex-start;display:flex;align-items:center;gap:7px;}
+  #ctlTogIcon{font-size:22px;line-height:.7;color:#C9D1D8;}
   .ctlTog:hover{color:#C9D1D8;}
   .ctlTog:focus-visible{outline:1px solid var(--sel);outline-offset:2px;}
   .ctlRow{display:flex;gap:8px;align-items:center;}
@@ -51,6 +57,9 @@
   .rchip{padding:6px 13px;border:1px solid var(--chip);color:var(--dim);font-size:15px;
          border-radius:3px;cursor:pointer;user-select:none;background:rgba(0,0,0,.55);}
   .rchip.on{border-color:var(--sel);color:var(--sel);}
+  /* vertical +/- opacity stepper (CHART row) */
+  .vstep{display:inline-flex;flex-direction:column;gap:2px;vertical-align:middle;}
+  .vstep .rchip{padding:0 9px;font-size:13px;line-height:16px;}
   .hint{position:absolute;right:24px;bottom:28px;color:#4A545D;font-size:14px;
         letter-spacing:.08em;}
   #emerg{position:absolute;top:20px;left:50%;transform:translateX(-50%);display:none;
@@ -73,7 +82,7 @@
   .lcl{color:var(--dim);font-size:14px;margin-top:2px;letter-spacing:.06em;
        font-variant-numeric:tabular-nums;}
 
-  .photo{margin-top:20px;height:198px;border:1px solid var(--chip);border-radius:3px;
+  .photo{margin-top:20px;height:236px;border:1px solid var(--chip);border-radius:3px;
          background:linear-gradient(180deg,#0A121B 0%,#060A10 100%);position:relative;
          display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
   .photo svg{opacity:.85;}
@@ -185,23 +194,31 @@
     background:#0b1622;border:1px solid #3A4A57;border-radius:8px;padding:9px 12px;
     color:#CBD4DC;font-size:14px;line-height:1.42;box-shadow:0 8px 26px rgba(0,0,0,.55);
     pointer-events:none;}
-  /* --- "PFD VIEW" button in the info panel --- */
-  .pfdRow{margin:12px 0 2px;}
-  #pfdBtn{width:100%;box-sizing:border-box;text-align:center;font-size:14px;
-    padding:9px;letter-spacing:.1em;background:#12202e;border-color:#2f4a63;color:#CDE0F2;}
+  /* --- "HUD VIEW" button in the control panel --- */
+  #pfdBtn{letter-spacing:.06em;background:#12202e;border-color:#2f4a63;color:#CDE0F2;}
   #pfdBtn.dim{opacity:.4;pointer-events:none;}
-  /* --- G1000-style PFD overlay --- */
+  /* --- first-person HUD overlay (near-fullscreen, 16:9) --- */
   #pfdModal{position:fixed;inset:0;z-index:70;display:none;
-    background:rgba(2,6,10,.93);align-items:center;justify-content:center;}
+    background:rgba(2,6,10,.96);align-items:center;justify-content:center;}
   #pfdModal.show{display:flex;}
-  #pfdCard{width:min(1040px,96vw);background:#05090e;border:1px solid #263341;
-    border-radius:12px;padding:12px 12px 10px;box-shadow:0 24px 70px rgba(0,0,0,.7);}
-  #pfdBar{display:flex;align-items:center;gap:12px;margin:2px 4px 10px;}
-  #pfdTitle{font-size:21px;font-weight:600;color:#E4EBF2;letter-spacing:.05em;flex:1;}
+  #pfdCard{width:min(99vw,1900px);background:#05090e;border:1px solid #1c2731;
+    border-radius:10px;padding:8px 10px 6px;box-shadow:0 24px 80px rgba(0,0,0,.75);
+    display:flex;flex-direction:column;max-height:99vh;position:relative;}
+  /* prev/next-aircraft arrows overlaid on the sides of the PFD */
+  .pfdNav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;
+    width:56px;height:96px;display:flex;align-items:center;justify-content:center;
+    font-size:52px;color:rgba(210,225,235,.55);background:rgba(6,12,18,.35);
+    border:1px solid rgba(120,150,175,.35);border-radius:8px;cursor:pointer;user-select:none;
+    transition:color .12s,background .12s;}
+  .pfdNav{left:22px;} .pfdNav.right{left:auto;right:22px;}
+  .pfdNav:hover,.pfdNav:focus{color:#eaf4fb;background:rgba(30,70,110,.6);outline:none;}
+  #pfdBar{display:flex;align-items:center;gap:12px;margin:2px 6px 6px;flex:none;}
+  #pfdTitle{font-size:22px;font-weight:600;color:#E4EBF2;letter-spacing:.05em;flex:1;}
   #pfdTitle small{color:#7A8792;font-weight:400;font-size:15px;letter-spacing:.02em;}
   #pfdClose{font-size:15px;}
-  #pfdCanvas{display:block;width:100%;height:auto;border-radius:8px;background:#000;}
-  #pfdFoot{margin:9px 6px 2px;font-size:12px;line-height:1.4;color:#67737e;letter-spacing:.02em;}
+  #pfdCanvas{display:block;width:auto;height:auto;max-width:100%;
+    max-height:calc(100vh - 96px);margin:0 auto;border-radius:6px;background:#000;}
+  #pfdFoot{margin:6px 6px 2px;font-size:12px;line-height:1.4;color:#67737e;letter-spacing:.02em;flex:none;}
 </style>
 
 <div id="tip"></div>
@@ -245,19 +262,36 @@
     <div id="pfdCard">
       <div id="pfdBar">
         <span id="pfdTitle">PFD</span>
+        <span class="rchip" id="pfdSkin" tabindex="0"
+              title="Switch between the fighter-style HUD and a Garmin-style glass PFD">G1000</span>
         <span class="rchip" id="pfdClose" tabindex="0">✕ CLOSE</span>
       </div>
-      <canvas id="pfdCanvas" width="1400" height="1008"></canvas>
+      <canvas id="pfdCanvas" width="1920" height="1080"></canvas>
+      <span class="pfdNav" id="pfdPrev" tabindex="0" role="button"
+            title="Fly the previous aircraft" aria-label="Previous aircraft">‹</span>
+      <span class="pfdNav right" id="pfdNext" tabindex="0" role="button"
+            title="Fly the next aircraft" aria-label="Next aircraft">›</span>
       <div id="pfdFoot">First-person view flown along the aircraft's ADS-B track &amp; flight
         path. Attitude is synthetic (ADS-B carries no attitude); speed is GROUND speed; the
         runway ahead is highlighted in yellow. For display only — not for navigation.</div>
     </div>
   </div>
   <div id="radarWrap">
+    <canvas id="radar3d" width="1560" height="1080"></canvas>
     <canvas id="radar" width="3120" height="2160"></canvas>
-    <div class="ident"><b>KCHS</b> · CHARLESTON · ADS-B</div>
+    <div class="ident">
+      <span class="identNav" id="aptPrev" tabindex="0" role="button"
+            title="Center on the previous nearby airport" aria-label="Previous airport">‹</span>
+      <b id="identCode">KCHS</b>
+      <span class="identNav" id="aptNext" tabindex="0" role="button"
+            title="Center on the next nearby airport" aria-label="Next airport">›</span>
+      <span id="identRest"> · CHARLESTON · ADS-B</span>
+    </div>
     <span class="rchip" id="homeReset" tabindex="0"
           style="position:absolute;left:28px;top:52px;display:none">⌂ KCHS</span>
+    <span class="rchip dim" id="pfdBtn" tabindex="0"
+          style="position:absolute;right:28px;top:22px;font-size:15px"
+          title="Fly along inside the selected aircraft — first-person HUD view">▣ HUD</span>
     <div class="ctlBox" id="ctlBox">
       <div class="ctlTog" id="ctlTog" tabindex="0" title="Show/hide controls">
         <span id="ctlTogIcon">▾</span> CONTROLS</div>
@@ -267,6 +301,18 @@
         <span class="rchip on" data-b="efis" tabindex="0">EFIS</span>
         <span class="rchip" data-b="sat" tabindex="0">SAT HYB</span>
         <span class="rchip" data-b="dark" tabindex="0">DARK</span>
+        <span class="rchip" data-mix="sec" tabindex="0" style="margin-left:10px">SECTIONAL</span>
+        <span class="vstep">
+          <span class="rchip" data-mixu="sec" tabindex="0" aria-label="Sectional opacity up">+</span>
+          <span class="rchip" data-mixd="sec" tabindex="0" aria-label="Sectional opacity down">–</span>
+        </span>
+        <span class="lbl" style="width:auto" id="mixsecv">0%</span>
+        <span class="rchip" data-mix="ifr" tabindex="0">IFR LOW</span>
+        <span class="vstep">
+          <span class="rchip" data-mixu="ifr" tabindex="0" aria-label="IFR low opacity up">+</span>
+          <span class="rchip" data-mixd="ifr" tabindex="0" aria-label="IFR low opacity down">–</span>
+        </span>
+        <span class="lbl" style="width:auto" id="mixifrv">0%</span>
       </div>
       <div class="ctlRow">
         <span class="lbl">SHOW</span>
@@ -294,31 +340,23 @@
         <span class="rchip" data-x="alt" tabindex="0">≤180</span>
       </div>
       <div class="ctlRow">
-        <span class="lbl">CHART</span>
-        <span class="rchip" data-mix="sec" tabindex="0">SECTIONAL</span>
-        <span class="rchip" data-mixd="sec" tabindex="0" aria-label="Sectional opacity down">–</span>
-        <span class="rchip" data-mixu="sec" tabindex="0" aria-label="Sectional opacity up">+</span>
-        <span class="lbl" style="width:auto" id="mixsecv">0%</span>
-      </div>
-      <div class="ctlRow">
-        <span class="lbl" style="visibility:hidden">CHART</span>
-        <span class="rchip" data-mix="ifr" tabindex="0">IFR LOW</span>
-        <span class="rchip" data-mixd="ifr" tabindex="0" aria-label="IFR low opacity down">–</span>
-        <span class="rchip" data-mixu="ifr" tabindex="0" aria-label="IFR low opacity up">+</span>
-        <span class="lbl" style="width:auto" id="mixifrv">0%</span>
-      </div>
-      <div class="ctlRow">
         <span class="lbl">VIEW</span>
         <span class="rchip on" data-view="2d" tabindex="0">2D</span>
         <span class="rchip" data-view="3d" tabindex="0">3D</span>
-        <span class="lbl" style="width:16px"></span>
-        <span class="rchip" data-o="wave" tabindex="0" title="Animated water (EFIS)">WAVES</span>
-      </div>
-      <div class="ctlRow">
-        <span class="lbl">TRAIL</span>
-        <span class="rchip" data-trd tabindex="0" aria-label="Less trail time">–</span>
-        <span class="rchip" data-tru tabindex="0" aria-label="More trail time">+</span>
-        <span class="lbl" style="width:auto" id="trMinV">3 MIN</span>
+        <span class="vstep" title="Slowly auto-orbit the 3-D view (right / left)">
+          <span class="rchip" id="spinR" tabindex="0" aria-label="Orbit 3-D view right"
+                style="font-size:15px;line-height:15px">↻</span>
+          <span class="rchip" id="spinL" tabindex="0" aria-label="Orbit 3-D view left"
+                style="font-size:15px;line-height:15px">↺</span>
+        </span>
+        <span class="rchip on" data-o="wave" tabindex="0" title="Animated water (EFIS)">WAVES</span>
+        <span class="rchip on" id="trailTog" tabindex="0" style="margin-left:10px"
+              title="Show breadcrumb trails behind each plane (click to toggle)">TRAIL</span>
+        <span class="vstep">
+          <span class="rchip" data-tru tabindex="0" aria-label="More trail time">+</span>
+          <span class="rchip" data-trd tabindex="0" aria-label="Less trail time">–</span>
+        </span>
+        <span class="lbl" style="width:auto" id="trMinV">5 MIN</span>
       </div>
       <div class="ctlRow">
         <span class="lbl">FIELD</span>
@@ -353,8 +391,11 @@
         <circle cx="100" cy="42" r="3" fill="none" stroke="#39424B" stroke-width="2"/>
       </svg>
       <span class="note" id="photoNote">AWAITING TRAFFIC</span>
+      <img id="photoBg" alt="" aria-hidden="true" style="display:none;position:absolute;inset:0;
+           width:100%;height:100%;object-fit:cover;border-radius:3px;
+           filter:blur(16px) brightness(.5) saturate(1.1);transform:scale(1.12);">
       <img id="photoImg" alt="" style="display:none;position:absolute;inset:0;
-           width:100%;height:100%;object-fit:cover;border-radius:3px;">
+           width:100%;height:100%;object-fit:contain;border-radius:3px;">
     </div>
     <div class="credit" id="photoCred"></div>
 
@@ -369,11 +410,6 @@
       <div class="cell"><div class="k">SPEED</div><div class="v" id="pSpd">—</div></div>
       <div class="cell"><div class="k">HDG</div><div class="v" id="pHdg">—</div></div>
       <div class="cell"><div class="k">DIST</div><div class="v" id="pDist">—</div></div>
-    </div>
-
-    <div class="pfdRow">
-      <span class="rchip dim" id="pfdBtn" tabindex="0"
-            title="Fly along inside the selected aircraft — first-person HUD view">▣ HUD VIEW</span>
     </div>
 
     <div class="divider"></div>
@@ -454,11 +490,12 @@ let metars={}, curApt=HOME.id, atisTxt=null, rwInUse='', curComm='', curName='';
 // layout (EFIS / SAT hybrid / DARK) + independent chart mix sliders over it
 let base='efis', view3d=false;
 let altFilter=false, autoRange=false;
-let trailMin=3;                               // minutes of trail to keep/draw; 0 = off. TRAIL –/+ set it.
+let trailMin=5;                               // minutes of trail to keep/draw. TRAIL –/+ step by 2.5.
+let trailOn=true;                             // TRAIL button: ON = fading minutes trail; OFF = short small dots
 const TRAIL_CAP=900;                           // hard point cap (memory guard)
 const mix={sec:0,ifr:0};                      // TV default: clean EFIS, no chart wash
 const ovl={asp:true,sua:false,ils:true,rnav:true,wpt:false,nav:false,awy:false,
-           wx:true,sig:true,wave:false};
+           wx:true,sig:true,wave:true};
 const VEIL={sec:.32,ifr:.3,sat:.46,dark:.22};
 const RINGCOL={efis:['#1C232B','#4A545D'],sec:['rgba(45,45,58,.6)','rgba(35,35,46,.9)'],
                ifr:['rgba(45,45,58,.6)','rgba(35,35,46,.9)'],
@@ -498,7 +535,7 @@ function buildTerrain(){
   const tc=terrCvs.getContext('2d'), im=tc.createImageData(cols,rows);
   const dy=(g.n-g.s)*111320/(rows-1);                      // metres per grid row
   const dx=(g.e-g.w)*111320*Math.cos((g.n+g.s)/2*Math.PI/180)/(cols-1);
-  const ZEN=50*Math.PI/180, AZ=315*Math.PI/180, EX=2.4;    // sun zenith/az, vert. exaggeration
+  const ZEN=48*Math.PI/180, AZ=315*Math.PI/180, EX=3.4;    // sun zenith/az, vert. exaggeration
   const flat=Math.cos(ZEN);
   const at=(r,c)=>M[Math.max(0,Math.min(rows-1,r))*cols+Math.max(0,Math.min(cols-1,c))];
   for(let r=0;r<rows;r++)for(let cc=0;cc<cols;cc++){
@@ -509,7 +546,7 @@ function buildTerrain(){
     const slope=Math.atan(EX*Math.hypot(dzdx,dzdy));
     const aspect=Math.atan2(dzdy,-dzdx);
     const hs=Math.cos(ZEN)*Math.cos(slope)+Math.sin(ZEN)*Math.sin(slope)*Math.cos(AZ-aspect);
-    const mult=Math.max(0.5,Math.min(1.7,1+1.35*(hs-flat)));  // 1.0 on flat ground
+    const mult=Math.max(0.4,Math.min(2.0,1+1.8*(hs-flat)));  // 1.0 on flat ground
     R*=mult; G*=mult; B*=mult;
     const i=(((rows-1-r)*cols)+cc)*4;         // grid row 0 = south → bottom of image
     im.data[i]=Math.max(0,Math.min(255,R)); im.data[i+1]=Math.max(0,Math.min(255,G));
@@ -533,7 +570,7 @@ function nmVec(h){ const r=h*Math.PI/180; return [Math.cos(r)/60, Math.sin(r)/(6
 
 function buildMap(){
   renderMap(mctx, CH);
-  if(view3d){ renderMap(m3x, CH3); buildGround3(); }
+  if(view3d){ buildScene3(); fetchTerrain(); }  // CPU fallback prep + GPU terrain load
   VH=CH;
   if(ovl.wave) buildWaterMask();
 }
@@ -559,9 +596,19 @@ function renderMap(c, vh){
       c.fillStyle='#182013'; c.fill(); }
     for(const poly of MAP.lakes){ path(c,poly); c.closePath();
       c.fillStyle=WATER; c.fill(); }
+    // rivers: taper with distance from the field so far reaches thin out (not a uniform
+    // ribbon all the way to the data edge); drawn per-segment
     c.strokeStyle=WATER; c.lineCap='round'; c.lineJoin='round';
-    c.lineWidth=Math.max(1,.06*pxPerNm);         // thin: major named rivers only
-    for(const poly of MAP.rivers){ path(c,poly); c.stroke(); }
+    const rBase=Math.max(0.8,.055*pxPerNm);
+    for(const poly of MAP.rivers){
+      for(let i=1;i<poly.length;i++){
+        const p0=prj(poly[i-1][0],poly[i-1][1]), p1=prj(poly[i][0],poly[i][1]);
+        const mlat=(poly[i-1][0]+poly[i][0])/2, mlon=(poly[i-1][1]+poly[i][1])/2;
+        const dnm=Math.hypot((mlat-CTR.lat)*60,(mlon-CTR.lon)*COSLAT*60);
+        c.lineWidth=rBase*Math.max(0.3, 1-dnm/(rangeNm*1.7));
+        c.beginPath(); c.moveTo(p0.x,p0.y); c.lineTo(p1.x,p1.y); c.stroke();
+      }
+    }
     // shoreline video-map lines
     c.strokeStyle=MAPLINE; c.lineWidth=1.3; c.globalAlpha=.9;
     for(const poly of MAP.coasts){ path(c,poly); c.stroke(); }
@@ -633,7 +680,645 @@ function buildGround3(){
   gr.addColorStop(0,'rgba(2,6,10,1)'); gr.addColorStop(.16,'rgba(2,6,10,0)');
   gr.addColorStop(.95,'rgba(2,6,10,0)'); gr.addColorStop(1,'rgba(2,6,10,.9)');
   g3x.fillStyle=gr; g3x.fillRect(0,0,CW,CH);
+  build3DTerrain();
 }
+
+// Raised 3-D terrain. The elevation grid is smoothed to kill sampling noise, cells
+// are lifted by their height, and each face is shaded by its true 3-D surface normal
+// against a fixed light — so ridges and valleys read as real topography (not the flat
+// top-down hillshade). Flat/coastal fields stay unchanged (no relief → nothing lifted).
+let terr3=[];
+function build3DTerrain(){
+  terr3=[];
+  const g=MAP.elev; if(!g) return;
+  const rows=g.rows, cols=g.cols, raw=g.m;
+  // single 3×3 smoothing pass — tame the raw 1-nm grid's noise but keep the peaks
+  let M=new Float32Array(rows*cols);
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    let sum=0,n=0;
+    for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+      const rr=r+dr,cc=c+dc; if(rr<0||rr>=rows||cc<0||cc>=cols) continue;
+      sum+=raw[rr*cols+cc]; n++;
+    }
+    M[r*cols+c]=sum/n;
+  }
+  let base=Infinity, top=-Infinity;
+  for(const v of M){ if(v<base)base=v; if(v>top)top=v; }
+  if(top-base<80) return;                                     // essentially flat → no 3-D terrain
+  const RELIEF_MIN=30, M2FT=3.28084, EXAG=2.6;               // vertical exaggeration for a readable relief
+  const dxM=(g.e-g.w)*111320*Math.cos((g.n+g.s)/2*Math.PI/180)/(cols-1);
+  const dyM=(g.n-g.s)*111320/(rows-1);
+  const latOf=r=>g.s+(g.n-g.s)*r/(rows-1), lonOf=c=>g.w+(g.e-g.w)*c/(cols-1);
+  const lx=-0.5, ly=0.55, lz=0.67, ll=Math.hypot(lx,ly,lz);  // light: from the NW, high
+  const savedVH=VH; VH=CH3;
+  const cells=[];
+  for(let r=0;r<rows-1;r++)for(let c=0;c<cols-1;c++){
+    const e00=M[r*cols+c], e01=M[r*cols+c+1], e11=M[(r+1)*cols+c+1], e10=M[(r+1)*cols+c];
+    if(Math.max(e00,e01,e11,e10)-base<RELIEF_MIN) continue;
+    const q0=prj(latOf(r),lonOf(c)),   q1=prj(latOf(r),lonOf(c+1));
+    const q2=prj(latOf(r+1),lonOf(c+1)),q3=prj(latOf(r+1),lonOf(c));
+    // surface normal from the slope (grid row 0 = south, so +r = north)
+    const dzE=((e01+e11)-(e00+e10))/2/dxM;
+    const dzN=((e10+e11)-(e00+e01))/2/dyM;
+    const SHADE_EXAG=9;                                       // steep normal → strong shaded-relief
+    const nx=-dzE*SHADE_EXAG, ny=-dzN*SHADE_EXAG, nz=1, nl=Math.hypot(nx,ny,nz);
+    const sh=(nx*lx+ny*ly+nz*lz)/(nl*ll);                     // ~0.65 on flat, →1 lit, →0 shadow
+    const br=Math.max(0.22,Math.min(1.7, 1.0+1.7*(sh-0.65))); // flat ≈ 1.0
+    let [R,G,B]=rampRGB((e00+e01+e11+e10)/4);
+    const F=M2FT*EXAG;
+    cells.push({ s:[isoP(q0.x,q0.y,(e00-base)*F), isoP(q1.x,q1.y,(e01-base)*F),
+                    isoP(q2.x,q2.y,(e11-base)*F), isoP(q3.x,q3.y,(e10-base)*F)],
+                 y:q3.y,
+                 col:'rgb('+Math.min(255,R*br|0)+','+Math.min(255,G*br|0)+','+Math.min(255,B*br|0)+')' });
+  }
+  cells.sort((a,b)=>a.y-b.y);                                 // painter's: far (north) first
+  terr3=cells;
+  VH=savedVH;
+}
+function drawTerrain3(){
+  for(const q of terr3){
+    const s=q.s;
+    ctx.fillStyle=q.col; ctx.strokeStyle=q.col; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(s[0].x,s[0].y); ctx.lineTo(s[1].x,s[1].y);
+    ctx.lineTo(s[2].x,s[2].y); ctx.lineTo(s[3].x,s[3].y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  }
+}
+
+/* ===== Tacview-style external perspective 3-D view =====================
+   A real perspective camera orbits the field. Terrain, traffic, runways and
+   range rings are projected in true 3-D, so mountains genuinely stand up and
+   aircraft float at their real altitude. Drag to orbit, wheel to zoom. ===== */
+const CAM3={az:205, el:14, auto:true, dir:1, spd:1.6, distMul:2.1};   // spd = slow cinematic orbit °/s; dir = +right / -left
+const R2=Math.PI/180;
+let sc3=null, cam3=null;
+function elevFtAt(lat,lon){ const g=MAP.elev; if(!g) return 0;
+  const fr=(lat-g.s)/(g.n-g.s)*(g.rows-1), fc=(lon-g.w)/(g.e-g.w)*(g.cols-1);
+  const r=Math.max(0,Math.min(g.rows-1,Math.round(fr))), c=Math.max(0,Math.min(g.cols-1,Math.round(fc)));
+  return Math.max(0,g.m[r*g.cols+c]||0)*3.28084; }
+function buildScene3(){
+  const g=MAP.elev; if(!g){ sc3=null; return; }
+  const rows=g.rows, cols=g.cols, raw=g.m, M=new Float32Array(rows*cols);
+  // light de-spike: mostly raw (keeps ridges sharp) with a little 3×3 average to kill spikes
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    let s=0,n=0;
+    for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+      const rr=r+dr,cc=c+dc; if(rr<0||rr>=rows||cc<0||cc>=cols) continue; s+=raw[rr*cols+cc]; n++; }
+    M[r*cols+c]=raw[r*cols+c]*0.6 + (s/n)*0.4;
+  }
+  let base=Infinity, top=-Infinity; for(const v of M){ if(v<base)base=v; if(v>top)top=v; }
+  sc3={rows,cols,M,base,top,S:g.s,W:g.w,N:g.n,E:g.e,
+    dxM:(g.e-g.w)*111320*Math.cos((g.n+g.s)/2*R2)/(cols-1),
+    dyM:(g.n-g.s)*111320/(rows-1)};
+}
+// Tacview-style hypsometric tint (0 = valley → 1 = peak): green → khaki → brown → rock → snow
+function hyps3(t){
+  const S=[[0,58,78,52],[0.22,96,100,62],[0.44,124,98,58],[0.64,118,108,94],
+           [0.82,166,160,148],[1,232,230,223]];
+  for(let i=0;i<S.length-1;i++){ const a=S[i],b=S[i+1];
+    if(t<=b[0]){ const u=(t-a[0])/((b[0]-a[0])||1);
+      return [a[1]+(b[1]-a[1])*u, a[2]+(b[2]-a[2])*u, a[3]+(b[3]-a[3])*u]; } }
+  const L=S[S.length-1]; return [L[1],L[2],L[3]];
+}
+// ---- shared perspective camera (world = X:east, Y:up, Z:north, in nm; MVP matrix
+// drives BOTH the WebGL terrain and the 2-D overlays so they line up exactly) ----
+const TER_EXAG=2.0, DEM_Z=11;           // vertical exaggeration; DEM tile zoom (~75 m)
+let MVP=null, camEye=[0,0,0];
+function m4persp(fovy,asp,n,f){const t=1/Math.tan(fovy/2);
+  return [t/asp,0,0,0, 0,t,0,0, 0,0,(f+n)/(n-f),-1, 0,0,2*f*n/(n-f),0];}
+function m4mul(a,b){const r=new Array(16);
+  for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+j]*b[i*4+k];r[i*4+j]=s;}return r;}
+function m4sub(a,b){return[a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function m4cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function m4dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function m4norm(a){const l=Math.hypot(a[0],a[1],a[2])||1;return[a[0]/l,a[1]/l,a[2]/l];}
+function m4look(e,c,u){const f=m4norm(m4sub(c,e)),s=m4norm(m4cross(f,u)),uu=m4cross(s,f);
+  return [s[0],uu[0],-f[0],0, s[1],uu[1],-f[1],0, s[2],uu[2],-f[2],0, -m4dot(s,e),-m4dot(uu,e),m4dot(f,e),1];}
+let cam3Dist=52;
+function setupCam3(){
+  const el=CAM3.el*R2, az=CAM3.az*R2;
+  const baseUp=((glReady?glMinE:(sc3?sc3.base:0))/1852)*TER_EXAG;
+  const dist=Math.max(22, rangeNm*CAM3.distMul); cam3Dist=dist;
+  const tgt=[0, baseUp, 0];
+  const eye=[dist*Math.cos(el)*Math.sin(az), baseUp+dist*Math.sin(el), dist*Math.cos(el)*Math.cos(az)];
+  MVP=m4mul(m4persp(40*R2, CW/CH, 0.3, 800), m4look(eye,tgt,[0,1,0])); camEye=eye;
+  glHazeN=dist*0.9; glHazeF=dist+glRadNm*0.95; glExag=TER_EXAG;
+}
+function proj3(lat,lon,altFt){                          // world point → screen (via MVP)
+  const cosC=Math.cos(CTR.lat*R2);
+  const E=(lon-CTR.lon)*cosC*60, U=(altFt/6076.12)*TER_EXAG, N=(lat-CTR.lat)*60, w=MVP;
+  const cw=w[3]*E+w[7]*U+w[11]*N+w[15]; if(cw<=0.02) return null;
+  const cx=w[0]*E+w[4]*U+w[8]*N+w[12], cy=w[1]*E+w[5]*U+w[9]*N+w[13];
+  return {x:(cx/cw*0.5+0.5)*CW, y:(0.5-cy/cw*0.5)*CH, d:cw};
+}
+// ---- WebGL high-resolution terrain (AWS Terrarium DEM tiles on the GPU) ----
+let gl3=null, glProg=null, glVAO=null, glTex=null, glIdxN=0, gl3U={},
+    glReady=false, glBusy=false, glKey=null, glInit=false, glMinE=0, glMaxE=1,
+    glTexel=[1,1], glWorldPerUV=[1,1], glRadNm=60, glWaterE=-99999, glWaterE2=-99999, glSeaMode=0, gl3WaveT=0,
+    glHazeN=47, glHazeF=200, glExag=TER_EXAG;
+function uLoc(n){ return gl3U[n]!==undefined?gl3U[n]:(gl3U[n]=gl3.getUniformLocation(glProg,n)); }
+function initGL(){
+  if(glInit) return; glInit=true;
+  const c=document.getElementById('radar3d');
+  try{ gl3=c.getContext('webgl2',{antialias:true,alpha:false}); }catch(e){ gl3=null; }
+  if(!gl3) return;
+  const g=gl3;
+  const VS='#version 300 es\n'+
+    'in vec2 aXZ; in vec2 aUV; uniform sampler2D uH; uniform mat4 uMVP; uniform float uExag; uniform vec3 uEye;'+
+    'uniform vec2 uTexel; uniform vec2 uWorldPerUV; uniform float uWaterE, uSeaMode;'+
+    'out float vElev; out float vDepth; out vec3 vWorld; out vec3 vNormal;'+
+    'float dec(vec3 c){return (c.r*255.0*256.0+c.g*255.0+c.b*255.0/256.0)-32768.0;}'+
+    // sampled height, with the SEA clamped flat to the detected water level: the DEM
+    // includes negative ocean bathymetry, which otherwise dips below the water band and
+    // renders as green land — so flatten anything below sea level to the surface.
+    'float hgt(vec2 uv){ float e=dec(textureLod(uH,uv,0.0).rgb); return uSeaMode>0.5?max(e,uWaterE):e; }'+
+    'void main(){ float e=hgt(aUV); float up=e/1852.0*uExag;'+
+    ' vec3 w=vec3(aXZ.x,up,aXZ.y); vElev=e; vWorld=w; vDepth=length(w-uEye);'+
+    // smooth normal from height-texture central differences (kills mesh facets)
+    ' float hxa=hgt(aUV-vec2(uTexel.x,0.0)), hxb=hgt(aUV+vec2(uTexel.x,0.0));'+
+    ' float hya=hgt(aUV-vec2(0.0,uTexel.y)), hyb=hgt(aUV+vec2(0.0,uTexel.y));'+
+    ' float sx=2.0*uWorldPerUV.x*uTexel.x, sz=2.0*uWorldPerUV.y*uTexel.y;'+
+    ' float dhx=(hxb-hxa)/1852.0*uExag, dhz=(hyb-hya)/1852.0*uExag;'+
+    ' vNormal=normalize(vec3(-dhx/sx, 1.0, -dhz/sz));'+
+    ' gl_Position=uMVP*vec4(w,1.0); }';
+  const FS='#version 300 es\nprecision highp float;'+
+    'in float vElev; in float vDepth; in vec3 vWorld; in vec3 vNormal;'+
+    'uniform float uMinE,uMaxE,uWaterE,uWaterE2,uHazeN,uHazeF,uWaveT,uWaves,uRad; uniform vec3 uSky,uEye; out vec4 frag;'+
+    'float band(float wl,float e){ return wl<-9000.0?0.0: smoothstep(wl-4.0,wl-1.0,e)*(1.0-smoothstep(wl+1.5,wl+5.0,e)); }'+
+    'float h21(vec2 p){p=fract(p*vec2(127.1,311.7));p+=dot(p,p+34.5);return fract(p.x*p.y*95.43);}'+
+    'float vnz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);'+
+    ' float a=h21(i),b=h21(i+vec2(1,0)),c=h21(i+vec2(0,1)),d=h21(i+vec2(1,1));'+
+    ' return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}'+
+    'float fbm(vec2 p){float v=0.0,a=0.5;for(int i=0;i<4;i++){v+=a*vnz(p);p=p*1.9+vec2(1.7,9.2);a*=0.5;}return v;}'+
+    'void main(){ vec3 n=normalize(vNormal); if(n.y<0.0)n=-n;'+
+    ' vec3 L=normalize(vec3(-0.5,0.72,0.45));'+
+    // hypsometric ramp keyed to ABSOLUTE elevation (metres), not the local min/max — so a
+    // sea-level field (Charleston) stays green while a high-desert field (Salt Lake) reads
+    // tan/brown and only real mountains go grey/snow, instead of every field spanning the
+    // whole ramp just because its own terrain was normalised 0..1.
+    ' float e=vElev;'+
+    ' vec3 base=vec3(0.30,0.44,0.24);'+                                   // low green
+    ' base=mix(base, vec3(0.42,0.47,0.28), smoothstep(120.0,450.0,e));'+  // yellow-green
+    ' base=mix(base, vec3(0.55,0.50,0.33), smoothstep(450.0,1100.0,e));'+ // tan / olive
+    ' base=mix(base, vec3(0.58,0.50,0.38), smoothstep(1100.0,1900.0,e));'+// brown
+    ' base=mix(base, vec3(0.54,0.51,0.48), smoothstep(1900.0,2700.0,e));'+// grey rock
+    ' base=mix(base, vec3(0.95,0.95,0.97), smoothstep(2900.0,3500.0,e));'+// snow
+    // flat low ground reads greener (fields/vegetation); steep high ground stays rocky
+    ' float veg=smoothstep(0.55,0.90,n.y)*(1.0-smoothstep(200.0,700.0,e));'+
+    ' base=mix(base, vec3(0.28,0.44,0.22), veg*0.5);'+
+    ' float sh=0.30+0.90*max(0.0,dot(n,L));'+
+    ' vec3 col=base*sh;'+
+    // water: flat DEM near a detected water level (sea, or a lake at its own elevation)
+    ' float water=max(band(uWaterE,vElev), band(uWaterE2,vElev));'+
+    ' water*=smoothstep(0.86,0.985,n.y);'+   // only flat surfaces read as water
+    ' vec3 wcol=mix(vec3(0.08,0.20,0.36), vec3(0.16,0.34,0.48), 0.5+0.5*n.y);'+
+    ' if(uWaves>0.5 && water>0.01){'+        // drifting sun-glitter + sheen on the water
+    '   vec2 wp=vWorld.xz*12.0; vec2 dr=vec2(uWaveT*0.6, uWaveT*0.35);'+
+    '   float e=0.05, hc=fbm(wp+dr);'+
+    '   float hx=fbm(wp+vec2(e,0.0)+dr)-hc, hy=fbm(wp+vec2(0.0,e)+dr)-hc;'+
+    '   vec3 wn=normalize(vec3(-hx*1.6, 1.0, -hy*1.6));'+
+    '   vec3 V=normalize(uEye-vWorld), Rl=reflect(-L,wn);'+
+    // diffuse ripple shading — wave normals catch the light, so the water shimmers with
+    // moving light/dark texture from ANY viewing angle (not only toward the sun)
+    '   float rip=dot(wn,L)-0.73;'+
+    '   wcol+=vec3(0.16,0.24,0.34)*rip*2.0;'+
+    // sharp sun-glitter (only where the reflected sun lines up with the eye)
+    '   float refl=pow(max(dot(Rl,V),0.0),22.0);'+          // broad sun reflection glow
+    '   wcol+=vec3(0.60,0.72,0.90)*refl*0.7;'+
+    '   float spk=pow(max(dot(Rl,V),0.0),150.0)*(0.6+1.0*fbm(wp*0.6+dr*1.7));'+  // sharp glitter
+    '   wcol+=vec3(0.95,0.98,1.0)*spk*1.4 + vec3(0.10,0.18,0.30)*pow(max(wn.y,0.0),6.0)*0.12;'+
+    // sparse twinkling sparkle dots — a few bright points that flash, seen from any angle
+    '   float sp=fbm(wp*2.7+dr*2.2);'+
+    '   float tw=smoothstep(0.88,0.975,sp)*max(0.0, 0.4+0.6*sin(uWaveT*6.0+hc*40.0));'+
+    '   wcol+=vec3(0.9,0.95,1.0)*tw*0.55;'+
+    ' }'+
+    ' col=mix(col, wcol, water);'+
+    // haze relative to camera distance: crisp near the look-at, fully sky far away
+    ' float hz=clamp((vDepth-uHazeN)/(uHazeF-uHazeN),0.0,1.0); hz=hz*hz*(3.0-2.0*hz);'+
+    ' col=mix(col, uSky, hz);'+
+    // radial edge fade: dissolve terrain into sky near the box edge in ALL directions,
+    // so it never reads as a floating rectangular tile from a steep/top-down angle
+    ' float rr=length(vWorld.xz); col=mix(col, uSky, smoothstep(uRad*0.72, uRad*0.97, rr));'+
+    ' frag=vec4(col,1.0); }';
+  function mk(t,s){const sh=g.createShader(t);g.shaderSource(sh,s);g.compileShader(sh);
+    if(!g.getShaderParameter(sh,g.COMPILE_STATUS)) console.warn('3D shader',g.getShaderInfoLog(sh));return sh;}
+  glProg=g.createProgram(); g.attachShader(glProg,mk(g.VERTEX_SHADER,VS));
+  g.attachShader(glProg,mk(g.FRAGMENT_SHADER,FS)); g.linkProgram(glProg); gl3U={};
+  if(!g.getProgramParameter(glProg,g.LINK_STATUS)){   // driver rejected the shader
+    console.warn('3D terrain link failed',g.getProgramInfoLog(glProg));
+    gl3=null;                                          // disable GPU path → CPU terrain
+  }
+}
+function mkbuf(data,loc,size){ const g=gl3,b=g.createBuffer();
+  g.bindBuffer(g.ARRAY_BUFFER,b); g.bufferData(g.ARRAY_BUFFER,data,g.STATIC_DRAW);
+  g.enableVertexAttribArray(loc); g.vertexAttribPointer(loc,size,g.FLOAT,false,0,0); }
+function fetchTerrain(){
+  initGL(); if(!gl3) return;
+  // Terrain box scales with the current range so a wide view isn't a small
+  // rectangle floating in haze. Larger ranges drop the DEM zoom to keep the
+  // tile count roughly constant; the far edge dissolves into the distance haze.
+  const cosLat=Math.cos(CTR.lat*R2);
+  const radNm=Math.max(48, rangeNm*3.4);          // half-extent covered, in nm
+  glRadNm=radNm;
+  const dlat=radNm/60, dlon=radNm/(60*cosLat);
+  let z=Math.round(Math.log2(9*360/(2*dlon)));    // ~9 tiles across (keeps px/nm ~const)
+  z=Math.max(9, Math.min(12, z));
+  const key=CTR.lat.toFixed(3)+','+CTR.lon.toFixed(3)+'@'+z;
+  if(glBusy || key===glKey) return;
+  glBusy=true; glKey=key;
+  const world=256*(2**z);
+  const lon2x=lon=>(lon+180)/360*(2**z);
+  const lat2y=lat=>{const r=lat*R2;return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*(2**z);};
+  const x0=Math.floor(lon2x(CTR.lon-dlon)), x1=Math.floor(lon2x(CTR.lon+dlon));
+  const y0=Math.floor(lat2y(CTR.lat+dlat)), y1=Math.floor(lat2y(CTR.lat-dlat));
+  const nx=x1-x0+1, ny=y1-y0+1;
+  const GN=Math.max(320, Math.min(448, Math.round(radNm*7)));  // keep mesh density
+  const st=document.createElement('canvas'); st.width=nx*256; st.height=ny*256;
+  const sx=st.getContext('2d'); let pend=nx*ny;
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+    const im=new Image(); im.crossOrigin='anonymous';
+    (function(ii,jj){ im.onload=()=>{ sx.drawImage(im,ii*256,jj*256); if(--pend===0) done(); };
+      im.onerror=()=>{ if(--pend===0) done(); }; })(i,j);
+    im.src='/api/dem?z='+z+'&x='+(x0+i)+'&y='+(y0+j);
+  }
+  function done(){ try{ bakeWaterMask(sx, x0*256, y0*256, z);      // stamp the precise OSM coastline/rivers into the DEM
+      buildTerrainMesh(st, x0*256, y0*256, nx*256, ny*256, world, GN); glReady=true; }
+    catch(e){ console.warn('terrain build',e); } glBusy=false; }
+}
+// Paint the real OSM water (open sea, estuaries, lakes, rivers) into the DEM heightmap at
+// sea level BEFORE it goes to the GPU. The DEM alone gives a coarse, blocky coastline; the
+// OSM polygons are crisp — so the 3-D coast/rivers end up matching the 2-D map (and Google),
+// and the GPU still renders them as flat, wavy water. Terrarium encodes 0 m as rgb(128,0,0).
+function bakeWaterMask(sx, X0, Y0, z){
+  if(typeof MAP==='undefined' || !MAP || !(MAP.water||MAP.rivers||MAP.lakes)) return;
+  const n=2**z, R=Math.PI/180, Wp=sx.canvas.width, Hp=sx.canvas.height;
+  const dem=sx.getImageData(0,0,Wp,Hp).data;                         // snapshot the raw DEM before we stamp water
+  const px=(lat,lon)=>{ const x=(lon+180)/360*n*256 - X0;
+    const r=lat*R, y=(1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n*256 - Y0; return [x,y]; };
+  const demAt=(x,y)=>{ x=Math.max(0,Math.min(Wp-1,x|0)); y=Math.max(0,Math.min(Hp-1,y|0));
+    const i=(y*Wp+x)*4; return dem[i]*256+dem[i+1]+dem[i+2]/256-32768; };
+  const enc=m=>{ const v=Math.max(0,Math.round(m)+32768); return 'rgb('+((v>>8)&255)+','+(v&255)+',0)'; };  // metres → Terrarium RGB
+  const trace=poly=>{ sx.beginPath();
+    for(let i=0;i<poly.length;i++){ const p=px(poly[i][0],poly[i][1]); i?sx.lineTo(p[0],p[1]):sx.moveTo(p[0],p[1]); } };
+  const cElev=poly=>{ let ax=0,ay=0; for(const q of poly){ const p=px(q[0],q[1]); ax+=p[0]; ay+=p[1]; }
+    return demAt(ax/poly.length, ay/poly.length); };
+  sx.save(); sx.lineJoin='round'; sx.lineCap='round';
+  // open sea / tidal estuaries → sea level (0 m); flattens the DEM's negative ocean bathymetry
+  sx.fillStyle=enc(0);
+  if(MAP.water) for(const p of MAP.water){ trace(p); sx.closePath(); sx.fill(); }
+  // lakes → each flattened to its OWN elevation (sampled), so a high lake (Great Salt Lake
+  // ~1282 m) stays at altitude instead of being punched down to sea level
+  if(MAP.lakes) for(const p of MAP.lakes){ sx.fillStyle=enc(cElev(p)); trace(p); sx.closePath(); sx.fill(); }
+  // rivers → each segment at its local ground elevation
+  sx.lineWidth=Math.max(2.5, 2**(z-9)*2.2);
+  if(MAP.rivers) for(const poly of MAP.rivers){
+    for(let i=1;i<poly.length;i++){ const a=px(poly[i-1][0],poly[i-1][1]), b=px(poly[i][0],poly[i][1]);
+      sx.strokeStyle=enc(demAt((a[0]+b[0])/2,(a[1]+b[1])/2));
+      sx.beginPath(); sx.moveTo(a[0],a[1]); sx.lineTo(b[0],b[1]); sx.stroke(); } }
+  // marsh islands → a touch above the local water so they read as land
+  if(MAP.islands) for(const p of MAP.islands){ sx.fillStyle=enc(Math.max(6,cElev(p)+3)); trace(p); sx.closePath(); sx.fill(); }
+  sx.restore();
+}
+function buildTerrainMesh(st, X0, Y0, Wp, Hp, world, GN){
+  const g=gl3; GN=GN||320;
+  if(!glTex) glTex=g.createTexture();
+  g.bindTexture(g.TEXTURE_2D,glTex); g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,false);
+  g.texImage2D(g.TEXTURE_2D,0,g.RGB,g.RGB,g.UNSIGNED_BYTE,st);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
+  const d=st.getContext('2d').getImageData(0,0,st.width,st.height).data;
+  const cosLat=Math.cos(CTR.lat*R2);
+  const px2lat=gy=>Math.atan(Math.sinh(Math.PI*(1-2*gy/world)))/R2;
+  const W=st.width, H=st.height;
+  const dec=p=>(d[p]*256+d[p+1]+d[p+2]/256)-32768;
+  // Water level = the most common elevation among flat pixels (a lake/sea is a large
+  // dead-flat area at one elevation; land varies continuously). Robust against stray
+  // low DEM artifacts that fooled a plain minimum. Track the two biggest (sea + lake,
+  // or two lakes at different levels, e.g. Great Salt Lake 1282 m + Utah Lake 1368 m).
+  let mn=1e9,mx=-1e9; const hist={}, vals=[];
+  for(let py=1;py<H-1;py+=6){ const lat=px2lat(Y0+py), dN=(lat-CTR.lat)*60;
+    for(let px=1;px<W-1;px+=6){ const p=(py*W+px)*4;
+      const e=dec(p); if(e<=-500) continue;
+      if(e<mn)mn=e; if(e>mx)mx=e;
+      const lon=(X0+px)/world*360-180, dE=(lon-CTR.lon)*cosLat*60;
+      if(dN*dN+dE*dE < 46*46){ vals.push(e);
+        if(Math.abs(e-dec(p+4))<0.7 && Math.abs(e-dec(p+W*4))<0.7){ const k=Math.round(e); hist[k]=(hist[k]||0)+1; } } } }
+  glMinE=mn; glMaxE=mx>mn?mx:mn+1;
+  vals.sort((a,b)=>a-b); const med=vals.length?vals[vals.length>>1]:mn;
+  const modes=Object.keys(hist).map(k=>[+k,hist[k]]).filter(a=>a[0]<med).sort((a,b)=>b[1]-a[1]);
+  const c1=modes.length?modes[0][1]:0;
+  glWaterE = c1>50 ? modes[0][0] : -99999;           // dominant flat water body
+  glWaterE2=-99999;                                   // a second body at another level
+  for(const [e,c] of modes){ if(Math.abs(e-glWaterE)>10 && c>Math.max(50,c1*0.06)){ glWaterE2=e; break; } }
+  // a near-sea-level body IS the ocean → flatten its bathymetry flat in the vertex shader
+  glSeaMode = (glWaterE>-9000 && glWaterE<80) ? 1 : 0;
+  const xz=new Float32Array(GN*GN*2), uv=new Float32Array(GN*GN*2);
+  glTexel=[1/st.width, 1/st.height];
+  glWorldPerUV=[(Wp/world*360)*cosLat*60, (px2lat(Y0)-px2lat(Y0+Hp))*60];  // nm across full uv
+  for(let j=0;j<GN;j++)for(let i=0;i<GN;i++){
+    const u=i/(GN-1), v=j/(GN-1), k=(j*GN+i)*2;
+    const lon=(X0+u*Wp)/world*360-180, lat=px2lat(Y0+v*Hp);
+    xz[k]=(lon-CTR.lon)*cosLat*60; xz[k+1]=(lat-CTR.lat)*60; uv[k]=u; uv[k+1]=v;
+  }
+  const idx=new Uint32Array((GN-1)*(GN-1)*6); let m=0;
+  for(let j=0;j<GN-1;j++)for(let i=0;i<GN-1;i++){
+    const a=j*GN+i,b=a+1,c=a+GN,dd=c+1; idx[m++]=a;idx[m++]=c;idx[m++]=b;idx[m++]=b;idx[m++]=c;idx[m++]=dd; }
+  glIdxN=idx.length;
+  if(!glVAO) glVAO=g.createVertexArray(); g.bindVertexArray(glVAO);
+  mkbuf(xz,g.getAttribLocation(glProg,'aXZ'),2); mkbuf(uv,g.getAttribLocation(glProg,'aUV'),2);
+  const ib=g.createBuffer(); g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,ib);
+  g.bufferData(g.ELEMENT_ARRAY_BUFFER,idx,g.STATIC_DRAW);
+}
+function renderGLTerrain(){
+  const g=gl3; if(!g||!glReady) return;
+  g.viewport(0,0,g.canvas.width,g.canvas.height);
+  g.enable(g.DEPTH_TEST); g.clearColor(0.40,0.53,0.72,1);
+  g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);
+  g.useProgram(glProg);
+  g.activeTexture(g.TEXTURE0); g.bindTexture(g.TEXTURE_2D,glTex);
+  g.uniform1i(uLoc('uH'),0); g.uniformMatrix4fv(uLoc('uMVP'),false,MVP);
+  g.uniform1f(uLoc('uExag'),glExag); g.uniform3fv(uLoc('uEye'),camEye);
+  g.uniform1f(uLoc('uMinE'),glMinE); g.uniform1f(uLoc('uMaxE'),glMaxE);
+  g.uniform1f(uLoc('uWaterE'),glWaterE); g.uniform1f(uLoc('uWaterE2'),glWaterE2);
+  g.uniform1f(uLoc('uSeaMode'),glSeaMode);
+  g.uniform2fv(uLoc('uTexel'),glTexel);
+  g.uniform2fv(uLoc('uWorldPerUV'),glWorldPerUV);
+  g.uniform1f(uLoc('uHazeN'),glHazeN); g.uniform1f(uLoc('uHazeF'),glHazeF);
+  g.uniform3f(uLoc('uSky'),0.40,0.53,0.72);
+  g.uniform1f(uLoc('uRad'),glRadNm); g.uniform1f(uLoc('uWaveT'),gl3WaveT);
+  g.uniform1f(uLoc('uWaves'), ovl.wave?1:0);
+  g.bindVertexArray(glVAO); g.drawElements(g.TRIANGLES,glIdxN,g.UNSIGNED_INT,0);
+}
+function drawScene3Terrain(){
+  if(!sc3) return;
+  const {rows,cols,M,base,top,dxM,dyM}=sc3;
+  const span=(top-base)||1;
+  const latOf=r=>sc3.S+(sc3.N-sc3.S)*r/(rows-1), lonOf=c=>sc3.W+(sc3.E-sc3.W)*c/(cols-1);
+  const F=3.28084, eft=e=>e*F;                               // proj3 applies TER_EXAG
+  const lx=-0.5,ly=0.55,lz=0.62,ll=Math.hypot(lx,ly,lz), SH=11;  // steeper shading normal
+  const cells=[];
+  for(let r=0;r<rows-1;r++)for(let c=0;c<cols-1;c++){
+    const e00=M[r*cols+c],e01=M[r*cols+c+1],e11=M[(r+1)*cols+c+1],e10=M[(r+1)*cols+c];
+    const p0=proj3(latOf(r),lonOf(c),eft(e00)), p1=proj3(latOf(r),lonOf(c+1),eft(e01));
+    const p2=proj3(latOf(r+1),lonOf(c+1),eft(e11)), p3=proj3(latOf(r+1),lonOf(c),eft(e10));
+    if(!p0||!p1||!p2||!p3) continue;
+    if((p0.x<-60&&p1.x<-60&&p2.x<-60&&p3.x<-60)||(p0.x>CW+60&&p1.x>CW+60&&p2.x>CW+60&&p3.x>CW+60)) continue;
+    if((p0.y<-60&&p1.y<-60&&p2.y<-60&&p3.y<-60)) continue;
+    const dzE=((e01+e11)-(e00+e10))/2/dxM, dzN=((e10+e11)-(e00+e01))/2/dyM;
+    const nx=-dzE*SH, ny=-dzN*SH, nl=Math.hypot(nx,ny,1);
+    const sh=(nx*lx+ny*ly+lz)/(nl*ll);
+    const br=Math.max(0.2,Math.min(1.7, 1.0+1.9*(sh-(lz/ll))));   // strong shaded relief
+    const d=(p0.d+p2.d)/2;
+    let [R,G,B]=hyps3(((e00+e01+e11+e10)/4-base)/span); R*=br; G*=br; B*=br;
+    const hf=Math.min(0.72,Math.max(0,(d-16)/95));        // atmospheric haze with distance
+    R=R*(1-hf)+34*hf; G=G*(1-hf)+56*hf; B=B*(1-hf)+80*hf;
+    cells.push({p:[p0,p1,p2,p3], d,
+      col:'rgb('+Math.min(255,R|0)+','+Math.min(255,G|0)+','+Math.min(255,B|0)+')'});
+  }
+  cells.sort((a,b)=>b.d-a.d);
+  for(const q of cells){ const p=q.p;
+    ctx.fillStyle=q.col; ctx.strokeStyle=q.col; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(p[0].x,p[0].y); ctx.lineTo(p[1].x,p[1].y);
+    ctx.lineTo(p[2].x,p[2].y); ctx.lineTo(p[3].x,p[3].y); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+}
+function drawScene3Rings(){
+  const gz=(sc3?sc3.base:0)*3.28084;
+  ctx.strokeStyle='rgba(120,150,175,.22)'; ctx.lineWidth=1;
+  for(const rr of [10,20,30,40,50]){ if(rr>rangeNm*1.8) break;
+    ctx.beginPath(); let on=false;
+    for(let d=0;d<=360;d+=5){
+      const lat=CTR.lat+rr*Math.cos(d*R2)/60, lon=CTR.lon+rr*Math.sin(d*R2)/(60*COSLAT);
+      const p=proj3(lat,lon,gz); if(!p){on=false;continue;}
+      if(on) ctx.lineTo(p.x,p.y); else{ ctx.moveTo(p.x,p.y); on=true; } }
+    ctx.stroke(); }
+}
+// NAV overlays in the true-perspective 3D view — airspace volumes, airways, approaches,
+// waypoints and navaids, all projected with proj3 (matching the WebGL terrain camera).
+function drawScene3Overlays(fam){
+  if(!(typeof NAV!=='undefined' && NAV)) return;
+  const gnd=(lat,lon)=>proj3(lat,lon, elevFtAt(lat,lon));
+  // don't draw overlays out past the visible terrain — their high ceilings otherwise
+  // project up into the haze at the horizon and look like they're floating in the sky
+  const RMAX=Math.min(glRadNm*0.78, rangeNm*3.2);
+  const nmC=(lat,lon)=>Math.hypot((lat-CTR.lat)*60,(lon-CTR.lon)*COSLAT*60);
+  const centreFar=pts=>{ let la=0,lo=0; for(const p of pts){ la+=p[0]; lo+=p[1]; } return nmC(la/pts.length,lo/pts.length)>RMAX; };
+  const polyline=(pts,latlonAt,close)=>{ ctx.beginPath(); let on=false,first=null;
+    for(let i=0;i<pts.length;i++){ const s=latlonAt(pts[i]); if(!s){on=false;continue;}
+      if(on)ctx.lineTo(s.x,s.y); else{ctx.moveTo(s.x,s.y);on=true;first=s;} }
+    if(close&&first&&on)ctx.lineTo(first.x,first.y); ctx.stroke(); };
+  // airways (ground level): Victor blue, T-route magenta
+  if(ovl.awy) for(const a of (NAV.awys||[])){
+    const col=a.id[0]==='V'?GMN.vor:GMN.rnav;
+    ctx.strokeStyle='rgba('+col+',.5)'; ctx.lineWidth=1.2;
+    polyline(a.pts,p=>gnd(p[0],p[1]),false);
+  }
+  // controlled airspace as 3D volumes: floor + ceiling rings joined by vertical walls,
+  // with a light translucent shade on the ceiling shelf
+  const fillRing=(pts,at,style)=>{ ctx.beginPath(); let on=false;
+    for(const p of pts){ const s=at(p); if(!s){on=false;continue;} on?ctx.lineTo(s.x,s.y):(ctx.moveTo(s.x,s.y),on=true); }
+    ctx.closePath(); ctx.fillStyle=style; ctx.fill(); };
+  if(ovl.asp) for(const A of ASP){
+    if(centreFar(A.pts)) continue;                         // off the visible terrain → skip (no sky-floating rings)
+    const col=ASPCOL[A.cls]||'92,156,226', ceil=A.ce||10000, flo=A.fl||0;
+    // shaded translucent walls so the volume reads as a solid shelf, + ceiling shade
+    ctx.fillStyle='rgba('+col+',.09)';
+    for(let i=0;i<A.pts.length;i++){ const p=A.pts[i], q=A.pts[(i+1)%A.pts.length];
+      const b0=proj3(p[0],p[1],flo), t0=proj3(p[0],p[1],ceil),
+            b1=proj3(q[0],q[1],flo), t1=proj3(q[0],q[1],ceil);
+      if(b0&&t0&&b1&&t1){ ctx.beginPath(); ctx.moveTo(b0.x,b0.y); ctx.lineTo(t0.x,t0.y);
+        ctx.lineTo(t1.x,t1.y); ctx.lineTo(b1.x,b1.y); ctx.closePath(); ctx.fill(); } }
+    fillRing(A.pts,p=>proj3(p[0],p[1],ceil),'rgba('+col+',.10)');   // ceiling shade
+    ctx.strokeStyle='rgba('+col+','+(A.cls==='D'?'.5':'.72')+')'; ctx.lineWidth=A.cls==='B'?1.9:1.4;
+    if(A.cls==='D') ctx.setLineDash([7,6]);
+    polyline(A.pts,p=>proj3(p[0],p[1],ceil),true);
+    polyline(A.pts,p=>proj3(p[0],p[1],flo),true);
+    ctx.setLineDash([]); ctx.lineWidth=1; ctx.strokeStyle='rgba('+col+',.3)';
+    const step=Math.max(1,Math.floor(A.pts.length/14));
+    for(let i=0;i<A.pts.length;i+=step){ const p=A.pts[i];
+      const b=proj3(p[0],p[1],flo), t=proj3(p[0],p[1],ceil);
+      if(b&&t){ ctx.beginPath(); ctx.moveTo(b.x,b.y); ctx.lineTo(t.x,t.y); ctx.stroke(); } }
+  }
+  // special-use airspace outline at its ceiling
+  if(ovl.sua) for(const s0 of (NAV.sua||[])){
+    if(centreFar(s0.pts)) continue;
+    const col=SUACOL[s0.t]||'201,120,178';
+    ctx.strokeStyle='rgba('+col+',.6)'; ctx.lineWidth=1.4; ctx.setLineDash([5,5]);
+    polyline(s0.pts,p=>proj3(p[0],p[1], s0.ce||10000),true); ctx.setLineDash([]);
+  }
+  // Approaches climb the glideslope in 3D (rising from the runway at the GS angle):
+  // ILS = localizer feather ramp; RNAV = dashed centreline. Fixes sit at their GS altitude
+  // with a faint drop-line to the ground.
+  if(ovl.ils||ovl.rnav) for(const A of NAV.appr){
+    if(A.ils?!ovl.ils:!ovl.rnav) continue;
+    const F=A.final; if(!F||F.length<2) continue;
+    const base=A.ils?GMN.ils:GMN.rnav;
+    const RW=F[F.length-1], gzft=elevFtAt(RW.lat,RW.lon);
+    const gsTan=Math.tan((((A.ils&&A.ils.gs)||3.0))*Math.PI/180);
+    const gsAltAt=(lat,lon)=>gzft+gsTan*Math.hypot((lat-RW.lat)*60,(lon-RW.lon)*COSLAT*60)*6076.12;
+    const gsP=(lat,lon)=>proj3(lat,lon, gsAltAt(lat,lon));
+    if(A.ils){
+      const dE=(F[0].lon-RW.lon)*COSLAT*60, dN=(F[0].lat-RW.lat)*60;   // runway → out toward first fix
+      const L0=Math.hypot(dE,dN)||1, ux=dE/L0, uy=dN/L0, pxu=-uy, pyu=ux;
+      const len=14, notch=len*0.1, bw=Math.min(6,Math.max(2,(A.ils.width)||4));
+      const wl=Math.tan((bw/2)*Math.PI/180)*len;
+      const P=(al,si)=>{ const e=ux*al+pxu*si, n=uy*al+pyu*si;   // altitude by along-track distance → the feather is a rising ramp
+        return proj3(RW.lat+n/60, RW.lon+e/(60*COSLAT), gzft+gsTan*al*6076.12); };
+      const rw=proj3(RW.lat,RW.lon,gzft), fl=P(len,wl), nn=P(len-notch,0), fr=P(len,-wl);
+      if(rw&&fl&&nn&&fr){
+        ctx.fillStyle='rgba('+base+',.20)';                            // one shaded half
+        ctx.beginPath(); ctx.moveTo(rw.x,rw.y); ctx.lineTo(fl.x,fl.y); ctx.lineTo(nn.x,nn.y); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='rgba('+base+',.75)'; ctx.lineWidth=1.4;        // feather outline
+        ctx.beginPath(); ctx.moveTo(rw.x,rw.y); ctx.lineTo(fl.x,fl.y); ctx.lineTo(nn.x,nn.y); ctx.lineTo(fr.x,fr.y); ctx.closePath(); ctx.stroke();
+      }
+    }else{
+      ctx.strokeStyle='rgba('+base+',.65)'; ctx.lineWidth=1.6; ctx.setLineDash([10,8]);
+      polyline(F,x=>gsP(x.lat,x.lon),false); ctx.setLineDash([]);
+    }
+    ctx.fillStyle='rgb('+base+')'; ctx.strokeStyle='rgb('+base+')'; ctx.lineWidth=1.3;
+    ctx.font='600 11px '+fam; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    for(const x of F){ if(!x.id||x.id.startsWith('RW')) continue; const s=gsP(x.lat,x.lon); if(!s) continue;
+      const g=gnd(x.lat,x.lon);
+      if(g){ ctx.strokeStyle='rgba('+base+',.3)'; ctx.setLineDash([2,3]); ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(g.x,g.y); ctx.lineTo(s.x,s.y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.strokeStyle='rgb('+base+')'; ctx.lineWidth=1.3; }
+      if(x.role==='faf') maltese(ctx,s.x,s.y,6,0); else fixTri(ctx,s.x,s.y,5,0);
+      ctx.fillText(x.id, s.x+8, s.y-6); }
+  }
+  // waypoints (cyan 4-point stars) + idents
+  if(ovl.wpt && rangeNm<=60) for(const w of NAV.wpts){
+    const s=gnd(w.lat,w.lon); if(!s||s.d>rangeNm*2) continue;
+    ctx.strokeStyle='rgba('+GMN.wpt+',.85)'; ctx.lineWidth=1.2; star4(ctx,s.x,s.y,5);
+    ctx.fillStyle='rgba('+GMN.wpt+',.85)'; ctx.font='10px '+fam; ctx.textAlign='left'; ctx.fillText(w.id,s.x+7,s.y-5);
+  }
+  // navaids: VOR hexagons (blue), NDB dots (tan)
+  if(ovl.nav){
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    for(const v of NAV.vors){ if(!v.cls||v.cls[0]!=='V') continue; const s=gnd(v.lat,v.lon); if(!s) continue;
+      const vc='rgb('+GMN.vor+')'; ctx.strokeStyle=vc; ctx.lineWidth=1.4; ctx.beginPath();
+      for(let k=0;k<6;k++){ const a=Math.PI/3*k-Math.PI/6, x=s.x+7*Math.cos(a), y=s.y+7*Math.sin(a); k?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+      ctx.closePath(); ctx.stroke(); ctx.fillStyle=vc; ctx.font='11px '+fam; ctx.fillText(v.id,s.x+11,s.y+4); }
+    for(const n of NAV.ndbs){ const s=gnd(n.lat,n.lon); if(!s) continue;
+      const nc='rgb('+GMN.ndb+')'; ctx.fillStyle=nc; ctx.beginPath(); ctx.arc(s.x,s.y,2.2,0,7); ctx.fill();
+      ctx.font='11px '+fam; ctx.fillText(n.id,s.x+10,s.y+4); }
+  }
+}
+function drawScene3Airport(fam){
+  if(!(NAV&&NAV.apts)) return;
+  for(const ap of NAV.apts){
+    const dn=(ap.lat-CTR.lat)*60, de=(ap.lon-CTR.lon)*COSLAT*60; if(Math.hypot(dn,de)>rangeNm*1.7) continue;
+    const home=ap.id.trim()===HOME.id;      // home is emphasized (brighter/thicker) but not yellow — yellow is HUD-only
+    if(ap.rwys) for(const rw of ap.rwys){
+      const z=elevFtAt((rw.a[0]+rw.b[0])/2,(rw.a[1]+rw.b[1])/2);
+      const a=proj3(rw.a[0],rw.a[1],z), b=proj3(rw.b[0],rw.b[1],z);
+      if(a&&b){ ctx.strokeStyle=home?'#bcd2e6':'#88aec9'; ctx.lineWidth=home?3:2; ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); ctx.lineCap='butt'; } }
+    const lp=proj3(ap.lat,ap.lon,elevFtAt(ap.lat,ap.lon)+60);
+    if(lp&&lp.d<rangeNm*2){ ctx.fillStyle=home?'#cfe0ee':'#9fb0bd';
+      ctx.font=(home?'700 13px ':'600 12px ')+fam; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+      ctx.fillText(ap.id.trim(),lp.x,lp.y); } }
+}
+function drawScene3Traffic(fam){
+  const gzBase=(sc3?sc3.base:0)*3.28084;
+  const list=[];
+  for(const a of AC){ if(altFilter&&!a.gnd&&a.alt>18000) continue;
+    const s=proj3(a.lat,a.lon,a.alt); if(!s) continue; a.sx=s.x; a.sy=s.y; list.push({a,s}); }
+  list.sort((x,y)=>y.s.d-x.s.d);
+  for(const o of list){
+    const a=o.a, s=o.s, sel=(a===selected), col=sel?'#FFB02E':acColor(a);
+    const g=proj3(a.lat,a.lon, a.gnd?a.alt:elevFtAt(a.lat,a.lon));
+    if(a.trail.length>1){ ctx.strokeStyle=col; ctx.lineWidth=sel?2:1.2;
+      for(let i=1;i<a.trail.length;i++){ const t0=proj3(a.trail[i-1].lat,a.trail[i-1].lon,a.trail[i-1].alt),
+        t1=proj3(a.trail[i].lat,a.trail[i].lon,a.trail[i].alt); if(!t0||!t1) continue;
+        ctx.globalAlpha=(i/a.trail.length)*(sel?.85:.45); ctx.beginPath(); ctx.moveTo(t0.x,t0.y); ctx.lineTo(t1.x,t1.y); ctx.stroke(); }
+      ctx.globalAlpha=1; }
+    if(g && !a.gnd){ ctx.strokeStyle=col; ctx.globalAlpha=.3; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+      ctx.beginPath(); ctx.moveTo(g.x,g.y); ctx.lineTo(s.x,s.y); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=.6;
+      ctx.beginPath(); ctx.arc(g.x,g.y,2.5,0,7); ctx.stroke(); ctx.globalAlpha=1; }
+    const sz=Math.max(4,Math.min(10, 320/s.d));
+    ctx.fillStyle=col; ctx.fillRect(s.x-sz/2,s.y-sz/2,sz,sz);
+    if(sel){ ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.strokeRect(s.x-sz-3,s.y-sz-3,2*sz+6,2*sz+6); }
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    ctx.strokeStyle='rgba(0,0,0,.85)'; ctx.lineWidth=3; ctx.lineJoin='round';
+    ctx.font='600 15px '+fam; ctx.strokeText(a.cs,s.x+sz+2,s.y-sz);
+    ctx.fillStyle=col; ctx.fillText(a.cs,s.x+sz+2,s.y-sz);
+    ctx.font='13px '+fam; ctx.strokeText(fmtBlock(a),s.x+sz+2,s.y-sz+15);
+    ctx.globalAlpha=.9; ctx.fillText(fmtBlock(a),s.x+sz+2,s.y-sz+15); ctx.globalAlpha=1;
+  }
+}
+// draw an image into a screen triangle mapped from texel coords (perspective quads on ground)
+function texTri(c,img,x0,y0,x1,y1,x2,y2,u0,v0,u1,v1,u2,v2){
+  c.save(); c.beginPath(); c.moveTo(x0,y0); c.lineTo(x1,y1); c.lineTo(x2,y2); c.closePath(); c.clip();
+  u1-=u0; v1-=v0; u2-=u0; v2-=v0; x1-=x0; y1-=y0; x2-=x0; y2-=y0;
+  const det=u1*v2-u2*v1; if(det){ const a=(v2*x1-v1*x2)/det, b=(v2*y1-v1*y2)/det,
+    d=(u1*x2-u2*x1)/det, e=(u1*y2-u2*y1)/det;
+    c.transform(a,b,d,e, x0-a*u0-d*v0, y0-b*u0-e*v0); c.drawImage(img,0,0); }
+  c.restore();
+}
+// NEXRAD precipitation in 3-D: the SAME smooth radar texture as the 2-D map, stacked at rising
+// altitudes into a soft translucent volume (fading toward the top) so weather has real vertical
+// depth in perspective without the blocky per-cell look. Each layer is sub-quadded so a tile
+// that rotates partly behind the camera still draws its visible part.
+function drawWeather3(){
+  if(!ovl.wx || !wxTiles.length) return;
+  const WT=wxTiles;
+  const gz=elevFtAt(CTR.lat,CTR.lon), G=2, LAYERS=12, TOP=11000;
+  ctx.imageSmoothingEnabled=true;
+  for(let L=0;L<LAYERS;L++){
+    const f=L/(LAYERS-1), alt=gz+TOP*f;
+    ctx.globalAlpha=0.12*(1-0.7*f*f);                     // many close, faint layers → smooth volume, fainter aloft
+    for(const t of WT){
+      if(!(t.img.complete && t.img.naturalWidth)) continue;
+      const w=t.img.naturalWidth, h=t.img.naturalHeight;
+      for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+        const la0=t.N+(t.S-t.N)*r/G, la1=t.N+(t.S-t.N)*(r+1)/G;
+        const lo0=t.W+(t.E-t.W)*c/G, lo1=t.W+(t.E-t.W)*(c+1)/G;
+        const p00=proj3(la0,lo0,alt), p01=proj3(la0,lo1,alt), p11=proj3(la1,lo1,alt), p10=proj3(la1,lo0,alt);
+        if(!p00||!p01||!p11||!p10) continue;
+        const u0=c/G*w,u1=(c+1)/G*w,v0=r/G*h,v1=(r+1)/G*h;
+        texTri(ctx,t.img, p00.x,p00.y,p01.x,p01.y,p11.x,p11.y, u0,v0,u1,v0,u1,v1);
+        texTri(ctx,t.img, p00.x,p00.y,p11.x,p11.y,p10.x,p10.y, u0,v0,u1,v1,u0,v1);
+      }
+    }
+  }
+  ctx.globalAlpha=1;
+}
+function renderScene3(dt,fam){
+  const r3=document.getElementById('radar3d');
+  if(CAM3.auto) CAM3.az=(CAM3.az+dt*CAM3.spd*CAM3.dir+360)%360;   // slow cinematic orbit (dir = left/right)
+  if(ovl.wave) gl3WaveT=(gl3WaveT+dt)%400;               // advance animated water (wrapped: keeps shader noise in float precision so glitter never dies)
+  setupCam3();
+  if(gl3 && glReady){                                     // GPU terrain behind, overlays on top
+    r3.style.display='block'; renderGLTerrain();
+  }else{
+    r3.style.display='none';                              // sky + loading / CPU fallback
+    const sk=ctx.createLinearGradient(0,0,0,CH);
+    sk.addColorStop(0,'#0a1c30'); sk.addColorStop(.55,'#123f5c'); sk.addColorStop(1,'#2f6a8f');
+    ctx.fillStyle=sk; ctx.fillRect(0,0,CW,CH);
+    if(gl3 && glBusy){ ctx.fillStyle='#cfe0ee'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font='600 22px '+fam; ctx.fillText('BUILDING 3-D TERRAIN…',CW/2,CH/2); ctx.textBaseline='alphabetic'; }
+    else if(!gl3){ if(!sc3) buildScene3(); drawScene3Terrain(); }   // no-WebGL fallback
+  }
+  drawWeather3();                                        // NEXRAD radar on the ground
+  drawScene3Rings(); drawScene3Overlays(fam); drawScene3Airport(fam); drawScene3Traffic(fam);
+  ctx.fillStyle='#8aa0b2'; ctx.textAlign='left'; ctx.textBaseline='alphabetic'; ctx.font='600 13px '+fam;
+  ctx.fillText(HOME.id+' · 3D'+(CAM3.auto?' · ORBIT':''), 24, CH-22);
+  ctx.textAlign='right'; ctx.fillStyle='#5f7180';
+  ctx.fillText('DRAG TO ORBIT · WHEEL TO ZOOM', CW-24, CH-22);
+}
+// orbit / zoom interaction (only active in the 3-D view)
+let sc3Drag=false, sc3X=0, sc3Y=0, sc3Moved=0;
+cvs.addEventListener('pointerdown',e=>{ if(!view3d) return; sc3Drag=true; sc3Moved=0; sc3X=e.clientX; sc3Y=e.clientY; });
+window.addEventListener('pointermove',e=>{ if(!sc3Drag) return;
+  const dx=e.clientX-sc3X, dy=e.clientY-sc3Y; sc3X=e.clientX; sc3Y=e.clientY; sc3Moved+=Math.abs(dx)+Math.abs(dy);
+  CAM3.auto=false;                                       // dragging stops the auto-orbit
+  { const sl=document.getElementById('spinL'), sr=document.getElementById('spinR');
+    if(sl) sl.classList.remove('on'); if(sr) sr.classList.remove('on'); }
+  CAM3.az=(CAM3.az-dx*0.3+360)%360; CAM3.el=Math.max(6,Math.min(72,CAM3.el-dy*0.2)); });
+window.addEventListener('pointerup',()=>{ sc3Drag=false; });
+cvs.addEventListener('wheel',e=>{ if(!view3d) return; e.preventDefault();
+  CAM3.distMul=Math.max(1.1,Math.min(6,CAM3.distMul*(e.deltaY>0?1.1:0.9))); },{passive:false});
 
 // 3D special-use airspace volumes (floor + ceiling polygons, corner walls)
 function drawSUA3(){
@@ -1233,9 +1918,12 @@ function ingest(list){
       a.trkAt=now;
     }
     a.gs=t.gs||0; a.trk=(t.track!=null?t.track:a.trk);
+    a.iasF=(typeof t.ias==='number')?t.ias:null;           // Comm-B air data, when broadcast
+    a.tasF=(typeof t.tas==='number')?t.tas:null;
+    a.machF=(typeof t.mach==='number')?t.mach:null;
     a.vr=t.baro_rate!=null?t.baro_rate:(t.geom_rate||0);
     a.seenAt=now;
-    if(trailMin>0) pushTrail(a,now);
+    if(!(trailOn && trailMin<=0)) pushTrail(a,now);
     if(!a.rte && a.cs && /^[A-Z]{3}\d/.test(a.cs)) fetchRoute(a);
   }
   for(let i=AC.length-1;i>=0;i--){                          // expire stale targets
@@ -1323,22 +2011,26 @@ async function typePhoto(a){
       if(j&&j.model) term=makerTerm(j.mfr,j.model);
     }catch(e){}
   }
+  if(!term) term=(a.t||'').trim();               // last resort: search the raw type code
   if(!term) return null;
-  try{
-    const u='https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='
-      +encodeURIComponent(term+' aircraft')+'&gsrlimit=1&prop=pageimages&piprop=thumbnail'
-      +'&pithumbsize=440&format=json&origin=*';
-    const r=await fetch(u,{signal:sig(9000)});
-    const j=await r.json();
-    const pages=j.query&&j.query.pages;
-    for(const id in pages||{}){
-      const th=pages[id].thumbnail;
-      if(th&&th.source){
-        const p={src:th.source, cred:term, type:true};
-        typePhotoCache[key]=p; return p;
+  // "google the type + plane, take the first picture": search Wikipedia for the type and
+  // return the first result that actually HAS a lead image (top result often has none).
+  for(const q of [term+' aircraft', term+' airplane']){
+    try{
+      const u='https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch='
+        +encodeURIComponent(q)+'&gsrlimit=8&prop=pageimages&piprop=thumbnail'
+        +'&pithumbsize=480&format=json&origin=*';
+      const r=await fetch(u,{signal:sig(9000)});
+      const j=await r.json();
+      const pages=j.query&&j.query.pages;
+      if(pages){
+        const arr=Object.values(pages).sort((x,y)=>(x.index||99)-(y.index||99));  // by search rank
+        for(const pg of arr){ const th=pg.thumbnail;
+          if(th&&th.source){ const p={src:th.source, cred:term, type:true};
+            typePhotoCache[key]=p; return p; } }
       }
-    }
-  }catch(e){}
+    }catch(e){}
+  }
   return null;
 }
 // GA callsigns are N-numbers; airliners are 3-letter ICAO + number (DAL2214)
@@ -1349,16 +2041,19 @@ function kindKey(a){
 }
 async function loadPhoto(a){
   const img=document.getElementById('photoImg');
+  const bg=document.getElementById('photoBg');
   const note=document.getElementById('photoNote');
   const cred=document.getElementById('photoCred');
-  if(!a){ img.style.display='none'; note.textContent='AWAITING TRAFFIC'; return; }
+  if(!a){ img.style.display=bg.style.display='none'; note.textContent='AWAITING TRAFFIC'; return; }
   if(a.hex===photoHex) return;
   photoHex=a.hex;
   const show=p=>{
     if(photoHex!==a.hex) return;                 // stale response
-    if(p){ img.src=p.src; img.style.display='block';
+    // The whole plane is always shown un-cropped (object-fit: contain); a blurred, dimmed
+    // copy fills the frame behind it so odd-aspect Wikipedia photos don't float in empty dark.
+    if(p){ img.src=p.src; bg.src=p.src; img.style.display=bg.style.display='block';
            cred.textContent=p.type?('TYPE · '+p.cred):p.similar?'SIMILAR AIRCRAFT':''; }
-    else{ img.style.display='none';
+    else{ img.style.display=bg.style.display='none';
           note.textContent=a.t?('NO PHOTO · '+a.t):'NO PHOTO ON FILE';
           cred.textContent=''; }
   };
@@ -1502,18 +2197,17 @@ function drawAC(){
     a.sx=p.x; a.sy=p.y;
     const sel=(a===selected);
     const col= sel ? '#FFB02E' : acColor(a);
-    // fading trail (a connected line that brightens toward the aircraft)
-    if(a.trail.length>1){
-      ctx.strokeStyle=col; ctx.lineJoin='round'; ctx.lineCap='round';
-      ctx.lineWidth= sel?2.6:1.7;
-      for(let i=1;i<a.trail.length;i++){
-        const p0=prj(a.trail[i-1].lat,a.trail[i-1].lon);
-        const p1=prj(a.trail[i].lat,a.trail[i].lon);
-        ctx.globalAlpha=(i/a.trail.length)*(sel?0.9:0.55);
-        ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
-      }
-      ctx.globalAlpha=1;
+    // trail: ON = fading dotted trail (grows toward the aircraft); OFF = short small even dots
+    ctx.fillStyle=col;
+    for(let i=0;i<a.trail.length;i++){
+      const t=prj(a.trail[i].lat,a.trail[i].lon);
+      const f=(i+1)/a.trail.length;
+      let s;
+      if(trailOn){ ctx.globalAlpha=f*(sel?0.85:0.45); s=(sel?1.6:1.2)+f*(sel?2.2:1.6); }
+      else { ctx.globalAlpha=(sel?0.7:0.4); s=sel?1.8:1.3; }      // uniform small dots
+      ctx.fillRect(t.x-s/2,t.y-s/2,s,s);
     }
+    ctx.globalAlpha=1;
     // velocity vector: ~60 s of flight, capped short (user dislikes long vectors)
     const vlen=Math.min(a.gs/60*pxPerNm/60*60, 34);
     const r=a.trk*Math.PI/180;
@@ -1545,6 +2239,7 @@ function drawAC(){
 
 /* ================= animation ================= */
 let selected=null, lastTrail=0;
+let clkPlane=null, clkN=0, clkT=0;                         // triple-click a plane → open the HUD
 function step(dt){
   // dead-reckon between polls so motion is smooth (~30 fps, not 5 s jumps)
   for(const a of AC){
@@ -1555,15 +2250,17 @@ function step(dt){
     a.alt=Math.max(0,a.alt+a.vr*dt/60);
   }
 }
-// append a timestamped trail point and drop anything older than the chosen minutes
+// append a timestamped trail point and drop anything older than the retention window
+// (the chosen minutes when TRAIL is ON; a short ~90 s breadcrumb when OFF)
+const SHORT_TRAIL_MS=90000;
 function pushTrail(a,now){
   a.trail.push({lat:a.lat,lon:a.lon,alt:a.alt,t:now});
-  const cutoff=now-trailMin*60000;
+  const cutoff=now-(trailOn?trailMin*60000:SHORT_TRAIL_MS);
   while(a.trail.length && a.trail[0].t<cutoff) a.trail.shift();
   if(a.trail.length>TRAIL_CAP) a.trail.splice(0,a.trail.length-TRAIL_CAP);
 }
 function pushTrails(){
-  if(trailMin<=0) return;
+  if(trailOn && trailMin<=0) return;           // ON but 0 min = nothing to keep
   const now=performance.now();
   for(const a of AC) pushTrail(a,now);
 }
@@ -1572,18 +2269,14 @@ function frame(now){
   const dt=Math.min((now-prev)/1000,.2); prev=now;
   step(dt);
   if(now-lastTrail>4000){ pushTrails(); lastTrail=now; }
+  const hudOpen=document.getElementById('pfdModal').classList.contains('show');
   ctx.clearRect(0,0,CW,CH);
   if(view3d){
     const fam=getComputedStyle(document.body).fontFamily;
-    ctx.drawImage(g3,0,0,CW,CH);
-    if(ovl.wave && base==='efis') drawWater3(dt);
-    if(ovl.asp) drawAirspace3();
-    drawLabels3(fam);
-    if(ovl.ils||ovl.rnav) drawApproaches3(fam);
-    drawAC3();
-    drawAltScale(fam);
-  }
+    if(!hudOpen) renderScene3(dt,fam);           // true-perspective orbit view (mountains + traffic)
+  }                                              // (skip while the HUD drives the shared GL canvas)
   else{
+    const r3=document.getElementById('radar3d'); if(r3.style.display!=='none') r3.style.display='none';
     ctx.drawImage(mapCvs,0,0,CW,CH);
     if(ovl.wave && base==='efis') drawWater(dt);
     drawAC();
@@ -1738,6 +2431,9 @@ if(/v=3d/.test(location.hash)){                           // #v=3d → isometric
   document.querySelectorAll('.rchip[data-view]')
     .forEach(x=>x.classList.toggle('on',x.dataset.view==='3d'));
 }
+{ const az=location.hash.match(/[#&]az=(-?\d+)/), el=location.hash.match(/[#&]el=(\d+)/);
+  if(az){ CAM3.az=+az[1]; CAM3.auto=false; }              // #az=310&el=18 → fixed 3-D view
+  if(el){ CAM3.el=Math.max(6,Math.min(72,+el[1])); } }
 document.querySelectorAll('.rchip[data-r]').forEach(x=>x.classList.toggle('on',+x.dataset.r===r0));
 document.querySelectorAll('.rchip[data-b]').forEach(x=>x.classList.toggle('on',x.dataset.b===base));
 const hm=(location.hash.match(/home=(\w+)/)||[])[1];      // #home=KJZI recenters on load
@@ -1854,6 +2550,7 @@ setInterval(wxRefresh,5*60*1000); wxRefresh();
 
 // forgiving click: nearest plane within 46 px, else nearest airport (→ METAR)
 cvs.addEventListener('click',e=>{
+  if(view3d && sc3Moved>6) return;                        // was an orbit drag, not a click
   const b=cvs.getBoundingClientRect();
   const mx=(e.clientX-b.left)/b.width*CW, my=(e.clientY-b.top)/b.height*CH;
   let best=null,bd=46;
@@ -1861,7 +2558,14 @@ cvs.addEventListener('click',e=>{
     if(altFilter&&a.alt>18000) continue;
     const d=Math.hypot(a.sx-mx,a.sy-my); if(d<bd){bd=d;best=a;}
   }
-  if(best){ selected=best; updPanel(); loadPhoto(best); return; }
+  if(best){
+    const now=Date.now();
+    clkN = (best===clkPlane && now-clkT<600) ? clkN+1 : 1;   // 3 quick clicks on the same plane
+    clkPlane=best; clkT=now;
+    selected=best; updPanel(); loadPhoto(best);
+    if(clkN>=3){ clkN=0; const pb=document.getElementById('pfdBtn'); if(pb) pb.click(); }  // → cockpit view
+    return;
+  }
   let apt=null,ad=34;
   for(const p of NAV.apts){
     let q;
@@ -1876,8 +2580,8 @@ cvs.addEventListener('click',e=>{
 // pick an airport as the home field: recenter (if within chart coverage),
 // show its CTAF/tower and METAR
 function setIdent(id,name){
-  document.querySelector('.ident').innerHTML=
-    '<b>'+id+'</b> · '+((name||'').toUpperCase())+' · ADS-B';
+  document.getElementById('identCode').textContent=id;
+  document.getElementById('identRest').textContent=' · '+((name||'').toUpperCase())+' · ADS-B';
 }
 setIdent(HOME.id,HOME.name);                   // initialise header/labels from config
 document.getElementById('homeReset').textContent='⌂ '+HOME.id;
@@ -1917,6 +2621,12 @@ document.querySelectorAll('.rchip[data-o]').forEach(c=>chipKeys(c,()=>{
   ovl[c.dataset.o]=!ovl[c.dataset.o];
   c.classList.toggle('on',ovl[c.dataset.o]); buildMap();
 }));
+// SPIN: toggle the slow cinematic auto-orbit in the 3-D view
+// two vertical rotate buttons: ↺ orbit left, ↻ orbit right; click the lit one to stop
+(function(){ const sl=document.getElementById('spinL'), sr=document.getElementById('spinR');
+  const sync=()=>{ sl.classList.toggle('on',CAM3.auto&&CAM3.dir<0); sr.classList.toggle('on',CAM3.auto&&CAM3.dir>0); };
+  const set=d=>{ if(CAM3.auto&&CAM3.dir===d) CAM3.auto=false; else { CAM3.auto=true; CAM3.dir=d; } sync(); };
+  chipKeys(sl,()=>set(-1)); chipKeys(sr,()=>set(1)); sync(); })();
 // return-to-Charleston button (shown when centered elsewhere)
 document.getElementById('homeReset').addEventListener('click',resetHome);
 
@@ -1961,6 +2671,27 @@ document.getElementById('homeReset').addEventListener('click',resetHome);
     el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn();} }); };
   key(chg,openBox); key(goBtn,start); key(cancelBtn,closeBox);
   input.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();start();} });
+})();
+
+// ---- ‹ › arrows beside the ident: recenter the map on the nearby airports drawn on
+// it (like clicking one) — instant, no reload; the home field stays the data source. ----
+(function(){
+  const prev=document.getElementById('aptPrev'), next=document.getElementById('aptNext');
+  // all nearby fields, ordered as a ring by distance from home so stepping feels natural
+  const ring=()=>{ if(!(NAV&&NAV.apts)) return [];
+    return NAV.apts.slice().sort((a,b)=>
+      (Math.hypot((a.lat-HOME.lat)*60,(a.lon-HOME.lon)*60)) -
+      (Math.hypot((b.lat-HOME.lat)*60,(b.lon-HOME.lon)*60))); };
+  // which airport the map is centred on now (nearest to CTR)
+  const curIdx=L=>{ let bi=0,bd=1e9; for(let i=0;i<L.length;i++){
+      const d=Math.hypot((L[i].lat-CTR.lat)*60,(L[i].lon-CTR.lon)*60*COSLAT);
+      if(d<bd){bd=d;bi=i;} } return bi; };
+  const step=dir=>{ const L=ring(); if(L.length<2) return;
+    selectAirport(L[(curIdx(L)+dir+L.length)%L.length]); };
+  const wire=(el,dir)=>{ el.addEventListener('click',()=>step(dir));
+    el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();step(dir);} }); };
+  wire(prev,-1); wire(next,1);
+  if(ring().length<2){ prev.style.display=next.style.display='none'; }
 })();
 
 // ---- Add-ATC-channel overlay: type a LiveATC feed name, the server verifies it's
@@ -2052,20 +2783,29 @@ document.querySelectorAll('.rchip[data-view]').forEach(c=>chipKeys(c,()=>{
   view3d=c.dataset.view==='3d';
   if(view3d) buildMap();                     // renders the extended 3D ground too
 }));
-// TRAIL time stepper — –/+ set how many minutes of breadcrumb trail to keep & draw
-function setTrail(min){
-  trailMin=Math.max(0,Math.min(30,min));
-  document.getElementById('trMinV').textContent=trailMin===0?'OFF':trailMin+' MIN';
-  const now=performance.now(), cutoff=now-trailMin*60000;
-  for(const a of AC){
-    if(trailMin===0) a.trail.length=0;
-    else while(a.trail.length && a.trail[0].t<cutoff) a.trail.shift();
-  }
+// TRAIL: ON/OFF button + –/+ minutes stepper. OFF keeps a short small-dot breadcrumb.
+function trimTrails(){
+  const now=performance.now(), cutoff=now-(trailOn?trailMin*60000:SHORT_TRAIL_MS);
+  for(const a of AC) while(a.trail.length && a.trail[0].t<cutoff) a.trail.shift();
 }
+function setTrail(min){
+  trailMin=Math.max(2.5,Math.min(30,Math.round(min/2.5)*2.5));
+  const v=document.getElementById('trMinV');
+  if(v) v.textContent=trailOn?trailMin+' MIN':'DOTS';
+  trimTrails();
+}
+function setTrailOn(on){
+  trailOn=on;
+  const b=document.getElementById('trailTog'); if(b) b.classList.toggle('on',on);  // the TRAIL label lights when on
+  const v=document.getElementById('trMinV'); if(v) v.textContent=on?trailMin+' MIN':'DOTS';
+  trimTrails();
+}
+document.getElementById('trailTog') &&
+  chipKeys(document.getElementById('trailTog'),()=>setTrailOn(!trailOn));
 document.querySelector('.rchip[data-trd]') &&
-  chipKeys(document.querySelector('.rchip[data-trd]'),()=>setTrail(trailMin-1));
+  chipKeys(document.querySelector('.rchip[data-trd]'),()=>setTrail(trailMin-2.5));
 document.querySelector('.rchip[data-tru]') &&
-  chipKeys(document.querySelector('.rchip[data-tru]'),()=>setTrail(trailMin+1));
+  chipKeys(document.querySelector('.rchip[data-tru]'),()=>setTrail(trailMin+2.5));
 /* ===== LiveATC audio panel =====
    Manual mode: tap one channel. SCAN mode: all channels stream muted through
    a local relay (/atc/…); a level detector opens the highest-priority channel
@@ -2237,7 +2977,7 @@ const TIPS={
   x:{ auto:'Automatically zooms to keep incoming planes in view.',
       alt:'Show only lower traffic; hide high jets just passing overhead.' },
   view:{ '2d':'Flat, top-down radar view.',
-         '3d':'Tilted 3-D view — planes float at their real altitude.' },
+         '3d':'True 3-D flyaround — real mountains and planes at altitude. Drag to orbit, wheel to zoom.' },
   mix:{ sec:'Fade an official VFR pilot map (roads, towns, airspace) over the top.',
         ifr:'Fade an official instrument-navigation chart over the top.' },
   id:{ chgAirport:'Download and switch the whole display to a different airport.',
@@ -2303,16 +3043,38 @@ chipKeys(document.getElementById('tipsTog'),()=>{
   const title=document.getElementById('pfdTitle');
   const btn=document.getElementById('pfdBtn');
   const closeBtn=document.getElementById('pfdClose');
-  const W=1000,H=720, CXc=500,CYc=372, SX=cv.width/W, SY=cv.height/H;
+  const W=1280,H=720, CXc=640,CYc=372, SX=cv.width/W, SY=cv.height/H;  // 16:9 logical space
+  const HUD_EXAG=1.3;   // vertical terrain exaggeration (orbit uses 2.0); applied to overlays too so traffic sits right
   const FAM=getComputedStyle(document.body).fontFamily;
   const D2R=Math.PI/180;
   const HFOV=70, FOC=(W/2)/Math.tan(HFOV/2*D2R);       // wide situational FOV; focal length (px)
-  const GRN='#39ff64', GRND='#1f9c3b';                   // HUD green (bright / dim)
+  // HUD colour scheme. Default 'g1000' = multi-colour glass-cockpit palette (white primary
+  // flight data, yellow aircraft symbol, cyan traffic, magenta nav). The others are single-
+  // tint F/A-18 looks. Pick with #hudcol=g1000|green|amber|cyan|white (remembered in storage).
+  //     pri (primary) dim       ref (a/c)  trf (traffic) nav (BRG)   pos (RNG)   ttg (time)  dest (airport)  trfAuto
+  const HUD_PALETTES={
+    g1000: { pri:'#39ff64', dim:'#1f9c3b', ref:'#ffe11a', trf:'#22e0ff', nav:'#ff45e0', pos:'#22e0ff', ttg:'#39ff64', dest:'#ffb02e', trfAuto:true },
+    white: { pri:'#eaf2f7', dim:'#8ba0ad', ref:'#ffe11a', trf:'#22e0ff', nav:'#ff45e0', pos:'#22e0ff', ttg:'#39ff64', dest:'#ffb02e', trfAuto:true },
+    green: { pri:'#39ff64', dim:'#1f9c3b', ref:'#39ff64', trf:'#39ff64', nav:'#ffd60a', pos:'#39ff64', ttg:'#39ff64', dest:'#ffd60a' },
+    amber: { pri:'#ffc340', dim:'#b6791a', ref:'#ffc340', trf:'#ffc340', nav:'#ffe58a', pos:'#ffc340', ttg:'#ffc340', dest:'#ffe58a' },
+    cyan:  { pri:'#38e6ff', dim:'#1a86a0', ref:'#38e6ff', trf:'#38e6ff', nav:'#ffd60a', pos:'#38e6ff', ttg:'#38e6ff', dest:'#ffd60a' } };
+  const hcHash=(location.hash.match(/[#&]hudcol=(\w+)/)||[])[1];
+  const hcSaved=(typeof localStorage!=='undefined' && localStorage.getItem('frtv_hudcol'))||'';
+  const HUD_COL=HUD_PALETTES[hcHash]?hcHash:(HUD_PALETTES[hcSaved]?hcSaved:'g1000');
+  const HP=HUD_PALETTES[HUD_COL];
+  let GRN=HP.pri, GRND=HP.dim;                            // primary / dim symbology
+  const C_REF=HP.ref, C_TRF=HP.trf, C_NAV=HP.nav, C_POS=HP.pos, C_TTG=HP.ttg, C_DEST=HP.dest;   // a/c / traffic / BRG / RNG / TTG / airport
   const SEA=[15,25,40];                                  // sea colour for elev≈0 cells
   const NM_PER_FT=1/6076.12;
-  let open=false, raf=0, pB=0,pP=0;                       // smoothed bank/pitch
+  // Garmin-style glass-PFD palette (used by the G1000 skin): cyan labels, green live
+  // frequencies, magenta course, yellow aircraft symbol, white flight data.
+  const G1K={ cyan:'#17c8ff', grn:'#25e23a', wht:'#ffffff', mag:'#ff3ad6', yel:'#ffd21a',
+              dim:'#9fb2bd', tape:'rgba(10,14,18,.5)', box:'#05080b' };
+  let skin=((typeof localStorage!=='undefined' && localStorage.getItem('frtv_pfdskin'))==='g1000'
+            || /[#&]g1000\b/.test(location.hash)) ? 'g1000' : 'hud';
+  let open=false, raf=0, pB=0,pP=0, hudHits=[];           // smoothed bank/pitch; click targets
   // camera state (set each frame)
-  let lat0,lon0,alt0,cosL,hr,pit,rol, terrPix=null,tRows=0,tCols=0;
+  let lat0,lon0,alt0,camAlt,cosL,hr,pit,rol, terrPix=null,tRows=0,tCols=0;
 
   function att(a){                                        // synthetic bank & flight-path pitch
     const V=Math.max(0,a.gs||0)*0.514444, tr=(a.trkRate||0)*D2R;
@@ -2323,7 +3085,7 @@ chipKeys(document.getElementById('tipsTog'),()=>{
   }
   // world lat/lon/altFt → screen (perspective; applies camera pitch & roll)
   function proj(lat,lon,ft){
-    const e=(lon-lon0)*cosL*60, n=(lat-lat0)*60, u=(ft-alt0)*NM_PER_FT;
+    const e=(lon-lon0)*cosL*60, n=(lat-lat0)*60, u=(ft-camAlt)*NM_PER_FT*HUD_EXAG;
     const fwd=e*Math.sin(hr)+n*Math.cos(hr), rgt=e*Math.cos(hr)-n*Math.sin(hr);
     const cp=Math.cos(pit), sp=Math.sin(pit);
     const depth=fwd*cp+u*sp, vert=u*cp-fwd*sp;
@@ -2342,6 +3104,28 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     let X=rgt/depth*FOC, Y=-vert/depth*FOC;
     const cr=Math.cos(rol), sr=Math.sin(rol);
     return {x:CXc+X*cr-Y*sr, y:CYc+X*sr+Y*cr};
+  }
+  // Render the real GPU mountains from the cockpit: build a first-person MVP in the
+  // shared terrain world (matching this HUD's eye / heading / pitch / roll and 70° FOV)
+  // and draw the WebGL terrain — real relief + a hazy far horizon. Returns false if the
+  // GPU terrain isn't ready (caller falls back to the low-res baked grid).
+  const r3el=document.getElementById('radar3d');
+  function hudGLTerrain(){
+    if(!(gl3&&glReady)) return false;
+    const cosC=Math.cos(CTR.lat*D2R);
+    const ex=(lon0-CTR.lon)*cosC*60, ez=(lat0-CTR.lat)*60, ey=(camAlt/6076.12)*HUD_EXAG;
+    const eye=[ex,ey,ez];
+    const cp=Math.cos(pit), sp=Math.sin(pit);
+    const fwd=[cp*Math.sin(hr), sp, cp*Math.cos(hr)];
+    const tgt=[ex+fwd[0], ey+fwd[1], ez+fwd[2]];
+    const right=m4norm(m4cross(fwd,[0,1,0])), up0=m4cross(right,fwd);
+    const cr=Math.cos(rol), sr=Math.sin(rol);
+    const up=[up0[0]*cr-right[0]*sr, up0[1]*cr-right[1]*sr, up0[2]*cr-right[2]*sr];
+    const asp=W/H, fovy=2*Math.atan(Math.tan(HFOV/2*D2R)/asp);
+    MVP=m4mul(m4persp(fovy,asp,0.04,700), m4look(eye,tgt,up)); camEye=eye;
+    glExag=HUD_EXAG; glHazeN=6; glHazeF=95;
+    renderGLTerrain();
+    return true;
   }
   function terrColAt(r,c){                                // colour of grid cell (from baked terrain)
     if(!terrPix) return '#2a3320';
@@ -2406,25 +3190,65 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     if(!(NAV&&NAV.apts)) return null;
     const ap=NAV.apts.find(p=>p.id.trim()===HOME.id); if(!ap||!ap.rwys) return null;
     const gz=elFt(groundM(ap.lat,ap.lon));
+    const rwNum=deg=>{ let n=Math.round(((deg%360)+360)%360/10); if(n===0)n=36; return String(n).padStart(2,'0'); };
     for(const rw of ap.rwys){
       const A=rw.a, B=rw.b; if(!A||!B) continue;
       const ux=(B[1]-A[1]), uy=(B[0]-A[0]), ul=Math.hypot(ux*cosL,uy)||1;
       const hw=0.014, eastNm=(-uy/ul)*hw, northNm=(ux*cosL/ul)*hw;
       const plat=northNm/60, plon=eastNm/(60*cosL);
-      const c1=proj(A[0]+plat,A[1]+plon,gz), c2=proj(B[0]+plat,B[1]+plon,gz);
-      const c3=proj(B[0]-plat,B[1]-plon,gz), c4=proj(A[0]-plat,A[1]-plon,gz);
-      if(c1&&c2&&c3&&c4){
-        px.beginPath(); px.moveTo(c1.x,c1.y); px.lineTo(c2.x,c2.y);
-        px.lineTo(c3.x,c3.y); px.lineTo(c4.x,c4.y); px.closePath();
-        px.fillStyle='rgba(255,214,10,.32)'; px.fill();
-        px.strokeStyle='#ffd60a'; px.lineWidth=2.6; px.stroke();
+      // draw the runway SUBDIVIDED so the visible part still shows when the plane is on
+      // it (a single quad vanishes the instant one corner falls behind the camera at 0 AGL)
+      const NSEG=8, lerp=(a,b,f)=>a+(b-a)*f;
+      px.fillStyle='rgba(150,156,162,.62)';                 // grey runway surface
+      for(let i=0;i<NSEG;i++){
+        const f0=i/NSEG, f1=(i+1)/NSEG;
+        const la0=lerp(A[0],B[0],f0), lo0=lerp(A[1],B[1],f0), la1=lerp(A[0],B[0],f1), lo1=lerp(A[1],B[1],f1);
+        const c1=proj(la0+plat,lo0+plon,gz), c2=proj(la1+plat,lo1+plon,gz),
+              c3=proj(la1-plat,lo1-plon,gz), c4=proj(la0-plat,lo0-plon,gz);
+        if(c1&&c2&&c3&&c4){ px.beginPath(); px.moveTo(c1.x,c1.y); px.lineTo(c2.x,c2.y);
+          px.lineTo(c3.x,c3.y); px.lineTo(c4.x,c4.y); px.closePath(); px.fill(); }
       }
-      // extended approach centreline ~8 nm off each end
-      px.strokeStyle='rgba(255,214,10,.6)'; px.lineWidth=1.6; px.setLineDash([12,10]);
+      // thin yellow contour: the two long edges + the two thresholds
+      px.strokeStyle='#ffd60a'; px.lineWidth=1.4;
+      const edge=sgn=>{ px.beginPath(); let pen=false;
+        for(let i=0;i<=NSEG;i++){ const f=i/NSEG, s=proj(lerp(A[0],B[0],f)+sgn*plat, lerp(A[1],B[1],f)+sgn*plon, gz);
+          if(!s){pen=false;continue;} pen?px.lineTo(s.x,s.y):px.moveTo(s.x,s.y); pen=true; } px.stroke(); };
+      edge(1); edge(-1);
+      for(const P of [A,B]){ const a=proj(P[0]+plat,P[1]+plon,gz), b=proj(P[0]-plat,P[1]-plon,gz);
+        if(a&&b){ px.beginPath(); px.moveTo(a.x,a.y); px.lineTo(b.x,b.y); px.stroke(); } }
+      // --- runway markings so it reads like a real runway: dashed centreline, threshold
+      //     "piano keys", and touchdown aiming-point bars flanking the centre ---
+      px.strokeStyle='rgba(238,241,246,.82)'; px.lineWidth=1.5; px.setLineDash([9,8]);
+      { px.beginPath(); let pen=false;
+        for(let i=0;i<=NSEG*2;i++){ const f=i/(NSEG*2), s=proj(lerp(A[0],B[0],f),lerp(A[1],B[1],f),gz);
+          if(!s){pen=false;continue;} pen?px.lineTo(s.x,s.y):px.moveTo(s.x,s.y); pen=true; }
+        px.stroke(); px.setLineDash([]); }
+      px.strokeStyle='rgba(240,242,247,.9)'; px.lineWidth=2.2;
+      const bar=(f0,f1,off)=>{ const s0=proj(lerp(A[0],B[0],f0)+off*plat,lerp(A[1],B[1],f0)+off*plon,gz),
+          s1=proj(lerp(A[0],B[0],f1)+off*plat,lerp(A[1],B[1],f1)+off*plon,gz);
+        if(s0&&s1){ px.beginPath(); px.moveTo(s0.x,s0.y); px.lineTo(s1.x,s1.y); px.stroke(); } };
+      for(const thr of [0,1]){ const dir=thr?-1:1, f0=thr?1:0;
+        for(let k=-2;k<=2;k++) bar(f0+dir*0.015, f0+dir*0.055, (k/2)*0.82);   // piano-key threshold stripes
+        bar(f0+dir*0.13, f0+dir*0.19, 0.34); bar(f0+dir*0.13, f0+dir*0.19, -0.34); }  // aiming-point bars
+      // runway designators painted at each threshold
+      const brgAB=Math.atan2((B[1]-A[1])*cosL,(B[0]-A[0]))/D2R;
+      for(const [P,deg] of [[B,brgAB],[A,brgAB+180]]){ const s=proj(P[0],P[1],gz+6);
+        if(s&&s.d>0.25){ px.fillStyle='#ffd60a'; px.font='700 16px '+FAM; px.textAlign='center'; px.textBaseline='middle';
+          px.lineWidth=3; px.strokeStyle='rgba(0,0,0,.7)'; px.strokeText(rwNum(deg),s.x,s.y);
+          px.fillText(rwNum(deg),s.x,s.y); } }
+      // extended approach centreline ~7 nm off each end — subdivided and clamped to the
+      // ground so it hugs the terrain instead of floating as a straight chord over mountains
+      px.strokeStyle='rgba(255,214,10,.55)'; px.lineWidth=1.6; px.setLineDash([12,10]);
       for(const [P,Q] of [[A,B],[B,A]]){
         const vx=(P[0]-Q[0]), vy=(P[1]-Q[1]), vl=Math.hypot(vx*60,vy*cosL*60)||1;
-        const s0=proj(P[0],P[1],gz), s1=proj(P[0]+vx/vl*8,P[1]+vy/vl*8,gz);
-        if(s0&&s1){ px.beginPath(); px.moveTo(s0.x,s0.y); px.lineTo(s1.x,s1.y); px.stroke(); }
+        const N=20; px.beginPath(); let pen=false;
+        for(let i=0;i<=N;i++){
+          const f=i/N, la=P[0]+(vx/vl)*7*f, lo=P[1]+(vy/vl)*7*f;
+          const s=proj(la,lo, elFt(groundM(la,lo)));
+          if(!s){ pen=false; continue; }
+          if(pen) px.lineTo(s.x,s.y); else { px.moveTo(s.x,s.y); pen=true; }
+        }
+        px.stroke();
       }
       px.setLineDash([]);
     }
@@ -2444,6 +3268,56 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     }
     return ap;
   }
+  // Is the selected plane established on an ILS into the home field? Returns the
+  // localizer & glideslope deviations (degrees) or null. Uses the approach's final
+  // fixes: threshold = last fix, inbound centreline = threshold → first fix.
+  function activeILS(a){
+    if(!(NAV&&NAV.appr)) return null;
+    let best=null, bestScore=1e9;
+    for(const A of NAV.appr){
+      if(!A.ils||!A.final||A.final.length<2) continue;
+      const RW=A.final[A.final.length-1], F0=A.final[0];
+      const cE=(F0.lon-RW.lon)*cosL*60, cN=(F0.lat-RW.lat)*60, cl=Math.hypot(cE,cN)||1;
+      const ux=cE/cl, uy=cN/cl;                              // outbound centreline unit (RW → FAF)
+      const dE=(a.lon-RW.lon)*cosL*60, dN=(a.lat-RW.lat)*60;
+      const along=dE*ux+dN*uy;                               // nm out from threshold along centreline
+      if(along<-0.6 || along>18) continue;                   // on the approach side, within ~18 nm
+      const latOff=dE*uy-dN*ux;                              // signed perpendicular offset (nm), +right
+      const locDev=Math.atan2(latOff, Math.max(0.15,along))/D2R;
+      if(Math.abs(locDev)>3.2) continue;                     // must be roughly on the localizer
+      const gzft=elFt(groundM(RW.lat,RW.lon));
+      if((a.alt||0)-gzft > 6000) continue;                   // only planes actually low on approach (not high overflights)
+      const gsAct=Math.atan2((a.alt||0)-gzft, Math.max(1,along*6076.12))/D2R;
+      const gsDev=gsAct-((A.ils.gs)||3.0);                   // + = above the glidepath
+      if(Math.abs(gsDev)>2.2) continue;                      // and roughly on the glidepath, not way high/low
+      const score=Math.abs(locDev)+along*0.02;
+      if(score<bestScore){ bestScore=score;
+        best={locDev, gsDev, ident:(A.ils.ident||'').replace(/^I/,'I-'), along}; }
+    }
+    return best;
+  }
+  // localizer (horizontal) + glideslope (vertical) deviation scales, PFD-style
+  function drawILSNeedles(ils, color, locY){
+    const gsX=CXc+250, gh=80, lh=100;
+    px.lineWidth=1.4; px.strokeStyle='rgba(228,238,246,.65)'; px.fillStyle='rgba(228,238,246,.65)';
+    // localizer scale (dots + centre reference)
+    px.beginPath(); px.moveTo(CXc,locY-9); px.lineTo(CXc,locY+9); px.stroke();
+    for(const d of [-2,-1,1,2]){ px.beginPath(); px.arc(CXc+d*(lh/2),locY,3.2,0,7); px.stroke(); }
+    // glideslope scale
+    px.beginPath(); px.moveTo(gsX-9,CYc); px.lineTo(gsX+9,CYc); px.stroke();
+    for(const d of [-2,-1,1,2]){ px.beginPath(); px.arc(gsX,CYc+d*(gh/2),3.2,0,7); px.stroke(); }
+    // moving CDI needles: localizer = a vertical needle sliding along the horizontal
+    // scale; glideslope = a horizontal needle sliding along the vertical scale
+    const lx=CXc-Math.max(-1.12,Math.min(1.12,ils.locDev/2.5))*lh;
+    const gy=CYc+Math.max(-1.12,Math.min(1.12,ils.gsDev/0.7))*gh;
+    px.strokeStyle=color; px.lineWidth=3.5; px.lineCap='round';
+    px.beginPath(); px.moveTo(lx, locY-26); px.lineTo(lx, locY+26); px.stroke();   // localizer needle
+    px.beginPath(); px.moveTo(gsX-26, gy); px.lineTo(gsX+26, gy); px.stroke();      // glideslope needle
+    px.lineCap='butt';
+    px.fillStyle=color; px.font='600 12px '+FAM; px.textAlign='center'; px.textBaseline='alphabetic';
+    px.fillText('LOC', CXc, locY+26); px.fillText('G/S', gsX, CYc-gh-8);
+    if(ils.ident){ px.fillStyle='rgba(228,238,246,.8)'; px.fillText(ils.ident, CXc, locY-20); }
+  }
   function groundM(lat,lon){                               // sample elevation grid (m) at a point
     const g=MAP.elev; if(!g) return 0;
     const fr=(lat-g.s)/(g.n-g.s)*(g.rows-1), fc=(lon-g.w)/(g.e-g.w)*(g.cols-1);
@@ -2452,13 +3326,16 @@ chipKeys(document.getElementById('tipsTog'),()=>{
   }
   function drawTraffic(a){                                 // other aircraft in perspective, with data blocks
     px.textAlign='center'; px.textBaseline='alphabetic';
+    hudHits=[];                                            // rebuilt each frame for click-to-select
     for(const o of AC){
       if(o===a) continue;
       const dn=(o.lat-a.lat)*60, de=(o.lon-a.lon)*cosL*60, dist=Math.hypot(dn,de);
       if(dist>50) continue;
       const s=proj(o.lat,o.lon,o.alt); if(!s||s.d<0.4) continue;
+      hudHits.push({o,x:s.x,y:s.y});
       const rel=Math.round(o.alt-(a.alt||0));                // relative altitude (ft)
-      px.strokeStyle=GRN; px.fillStyle=GRN; px.lineWidth=1.4;
+      const tc=HP.trfAuto?acColor(o):C_TRF;                  // colour-code traffic by altitude (map colours)
+      px.strokeStyle=tc; px.fillStyle=tc; px.lineWidth=1.4;
       px.strokeRect(s.x-6,s.y-6,12,12);
       px.beginPath(); px.moveTo(s.x,s.y-6); px.lineTo(s.x,s.y-13); px.stroke();   // stub
       px.font='600 12px '+FAM; px.fillText(o.cs, s.x, s.y-16);
@@ -2504,7 +3381,7 @@ chipKeys(document.getElementById('tipsTog'),()=>{
 
   function velVector(){                                     // flight-path marker — we fly along it, so it sits at centre
     const x=CXc, y=CYc;
-    px.strokeStyle=GRN; px.lineWidth=2.4;
+    px.strokeStyle=C_REF; px.lineWidth=2.4;                 // aircraft reference (yellow in G1000)
     px.beginPath(); px.arc(x,y,9,0,7); px.stroke();
     px.beginPath();
     px.moveTo(x-9,y); px.lineTo(x-20,y);                    // left wing
@@ -2512,7 +3389,7 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     px.moveTo(x,y-9); px.lineTo(x,y-16);                    // tail fin
     px.stroke();
   }
-  function bankScale(){
+  function bankScale(){                                    // arc along the TOP, over the attitude
     const cx=CXc, cy=CYc, R=250;
     px.strokeStyle=GRN; px.fillStyle=GRN; px.lineWidth=2;
     for(const t of [-45,-30,-20,-10,0,10,20,30,45]){
@@ -2549,24 +3426,516 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     px.fillStyle=GRN; px.font='700 17px '+FAM;
     px.fillText(String(Math.round(trk)).padStart(3,'0'), CXc, y+38);
   }
-  function box(x,align,label,val,agl){
-    px.strokeStyle=GRN; px.fillStyle=GRN; px.textBaseline='middle';
-    px.font='600 12px '+FAM; px.textAlign=align;
-    px.fillText(label, x, CYc-46);
-    px.lineWidth=2; px.strokeRect(align==='left'?x:x-118,CYc-24,118,48);
-    px.font='700 30px '+FAM; px.textAlign='center';
-    const bx=align==='left'?x+59:x-59;
-    px.fillText(val, bx, CYc);
-    if(agl!=null){ px.font='600 13px '+FAM; px.fillStyle=GRND;
-      px.fillText(agl, bx, CYc+38); px.fillStyle=GRN; }
+  // F/A-18-style moving vertical scale: a ticked tape with the live value in a
+  // pointer box. side='left' → airspeed (box outside, ticks/numbers toward centre);
+  // side='right' → altitude (mirror). fmt formats the major-tick labels.
+  function hudTape(cx,side,label,value,ppu,minor,major,fmt,boxStr,sub){
+    const cy=CYc, half=196, inL=(side==='left'), dir=inL?1:-1;
+    px.strokeStyle=GRN; px.fillStyle=GRN;
+    px.lineWidth=1.5; px.beginPath(); px.moveTo(cx,cy-half); px.lineTo(cx,cy+half); px.stroke();
+    // label above the tape
+    px.font='600 13px '+FAM; px.textAlign='center'; px.textBaseline='alphabetic';
+    px.fillText(label, cx+dir*4, cy-half-10);
+    // ticks + numbers (clipped to tape height)
+    px.save();
+    px.beginPath(); px.rect(inL?cx-4:cx-150, cy-half, 154, half*2); px.clip();
+    px.font='600 14px '+FAM; px.textBaseline='middle'; px.textAlign=inL?'left':'right';
+    const topV=value+half/ppu, botV=value-half/ppu, first=Math.ceil(botV/minor)*minor;
+    for(let v=first; v<=topV; v+=minor){
+      if(v<-0.001) continue;
+      const y=cy-(v-value)*ppu, mj=(Math.round(v)%major===0);
+      px.lineWidth=1.5; px.beginPath(); px.moveTo(cx,y); px.lineTo(cx+dir*(mj?15:8),y); px.stroke();
+      if(mj) px.fillText(fmt(v), cx+dir*21, y);
+    }
+    px.restore();
+    // live-value pointer box on the scale line
+    const bw=112, bh=42, nt=9;
+    px.beginPath();
+    if(inL){ px.moveTo(cx,cy-bh/2); px.lineTo(cx-bw,cy-bh/2); px.lineTo(cx-bw,cy+bh/2);
+      px.lineTo(cx,cy+bh/2); px.lineTo(cx,cy+nt); px.lineTo(cx+nt,cy); px.lineTo(cx,cy-nt); }
+    else{ px.moveTo(cx,cy-bh/2); px.lineTo(cx+bw,cy-bh/2); px.lineTo(cx+bw,cy+bh/2);
+      px.lineTo(cx,cy+bh/2); px.lineTo(cx,cy+nt); px.lineTo(cx-nt,cy); px.lineTo(cx,cy-nt); }
+    px.closePath();
+    px.fillStyle='rgba(3,9,13,.62)'; px.fill(); px.strokeStyle=GRN; px.lineWidth=2; px.stroke();
+    px.fillStyle=GRN; px.font='700 27px '+FAM; px.textAlign='center'; px.textBaseline='middle';
+    px.fillText(boxStr, inL?cx-bw/2:cx+bw/2, cy);
+    if(sub){ px.font='600 14px '+FAM; px.fillStyle=GRND;
+      px.fillText(sub, inL?cx-bw/2:cx+bw/2, cy+bh/2+15); px.fillStyle=GRN; }
   }
-
+  /* ===================== Garmin-style glass PFD skin ===================== */
+  // roll scale + pointer along the top of the attitude (fixed white arc, moving pointer)
+  function g1kRollArc(){
+    const cx=CXc, cy=CYc, R=232;
+    px.strokeStyle=G1K.wht; px.fillStyle=G1K.wht; px.lineWidth=2;
+    for(const t of [-60,-45,-30,-20,-10,0,10,20,30,45,60]){
+      const ang=(-90+t)*D2R, r1=R, r0=R-((t===0)?0:(t%30===0?15:9));
+      if(t===0) continue;
+      px.beginPath();
+      px.moveTo(cx+Math.cos(ang)*r0, cy+Math.sin(ang)*r0);
+      px.lineTo(cx+Math.cos(ang)*r1, cy+Math.sin(ang)*r1); px.stroke();
+    }
+    // fixed hollow reference triangle at the very top (0°)
+    px.beginPath(); px.moveTo(cx,cy-R); px.lineTo(cx-9,cy-R-14); px.lineTo(cx+9,cy-R-14);
+    px.closePath(); px.lineWidth=2; px.stroke();
+    // moving roll pointer (filled triangle) + slip-skid trapezoid under it
+    const ang=(-90+pB)*D2R;
+    px.save(); px.translate(cx+Math.cos(ang)*R, cy+Math.sin(ang)*R); px.rotate(ang+Math.PI/2);
+    px.beginPath(); px.moveTo(0,0); px.lineTo(-10,15); px.lineTo(10,15); px.closePath(); px.fill();
+    px.strokeStyle=G1K.wht; px.lineWidth=1.4; px.strokeRect(-13,17,26,7);   // skid box
+    px.restore();
+  }
+  // fixed yellow aircraft reference symbol (G1000 split-wing "birdie")
+  function g1kAircraftSym(){
+    const cx=CXc, cy=CYc;
+    px.lineWidth=3; px.lineJoin='miter';
+    const wing=(dir)=>{ px.beginPath();
+      px.moveTo(cx+dir*66,cy); px.lineTo(cx+dir*30,cy); px.lineTo(cx+dir*30,cy+13);
+      px.strokeStyle='#000'; px.lineWidth=6; px.stroke();
+      px.strokeStyle=G1K.yel; px.lineWidth=3; px.stroke(); };
+    wing(-1); wing(1);
+    // centre dot
+    px.fillStyle='#000'; px.beginPath(); px.arc(cx,cy,5,0,7); px.fill();
+    px.fillStyle=G1K.yel; px.beginPath(); px.arc(cx,cy,3.2,0,7); px.fill();
+  }
+  // white pitch ladder, referenced to the synthetic-vision horizon (uses projDir)
+  function g1kPitchLadder(){
+    px.save();
+    px.beginPath(); px.rect(160,66,W-320,382); px.clip();      // keep clear of tapes/top bar/HSI
+    px.strokeStyle=G1K.wht; px.fillStyle=G1K.wht; px.font='600 13px '+FAM; px.textBaseline='middle';
+    const line=(a0,e0,a1,e1)=>{ const p=projDir(a0,e0), q=projDir(a1,e1); if(!p||!q) return;
+      px.lineWidth=2; px.beginPath(); px.moveTo(p.x,p.y); px.lineTo(q.x,q.y); px.stroke(); };
+    // horizon line with centre gap
+    line(-32,0,-5,0); line(5,0,32,0);
+    for(let el=-90;el<=90;el+=5){ if(el===0) continue;
+      const span=(Math.abs(el)%10===0)?(Math.abs(el)>=50?8:12):6;
+      const l0=projDir(-span,el), l1=projDir(-4,el), r0=projDir(4,el), r1=projDir(span,el);
+      px.lineWidth=1.8;
+      if(l0&&l1){ px.beginPath(); px.moveTo(l0.x,l0.y); px.lineTo(l1.x,l1.y);
+        px.lineTo(l1.x,l1.y+(el>0?6:-6)); px.stroke(); }
+      if(r0&&r1){ px.beginPath(); px.moveTo(r1.x,r1.y); px.lineTo(r0.x,r0.y);
+        px.lineTo(r0.x,r0.y+(el>0?6:-6)); px.stroke(); }
+      if(Math.abs(el)%10===0){ const lbl=Math.abs(el);
+        if(l0){ px.textAlign='right'; px.fillText(lbl,l0.x-6,l0.y); }
+        if(r1){ px.textAlign='left';  px.fillText(lbl,r1.x+6,r1.y); } }
+    }
+    px.restore();
+  }
+  // vertical speed/altitude/airspeed grey tape, Garmin style. strip=true adds the airspeed
+  // Vspeed colour band (red/white/green/yellow/red) up the outer edge, like a real G1000.
+  function g1kTape(cx,w,side,value,ppu,minor,major,boxStr,label,fmt,strip){
+    const cy=CYc, half=176, inL=(side==='left'), edge=inL?cx+w:cx-w, out=inL?cx:cx-w;
+    fmt=fmt||(v=>String(Math.round(v)));
+    px.fillStyle=G1K.tape; px.fillRect(out, cy-half, w, half*2);
+    px.strokeStyle='rgba(210,225,235,.5)'; px.lineWidth=1.2;
+    px.beginPath(); px.moveTo(edge,cy-half); px.lineTo(edge,cy+half); px.stroke();
+    if(label){ px.fillStyle=G1K.cyan; px.font='600 13px '+FAM; px.textAlign='center'; px.textBaseline='alphabetic';
+      px.fillText(label, inL?cx+w/2:cx-w/2, cy-half-9); }
+    px.save();
+    px.beginPath(); px.rect(out, cy-half, w, half*2); px.clip();
+    // Vspeed colour strip on the INNER edge (next to the pointer), like a real G1000:
+    // nothing below flap speed → white (flap range) → green (normal) → yellow (caution) →
+    // red (Vne/overspeed). This tape shows GROUND SPEED, so the scale is pushed up to jet
+    // cruise speeds — normal jet ops stay in the green, red is reserved for a true overspeed.
+    if(strip){ const sw=8, sx=inL?edge-sw:edge;
+      const bands=[[45,130,'#e9eef2'],[130,470,'#1fbf3a'],[470,540,'#e6c21e'],[540,950,'#c0392b']];
+      for(const [lo,hi,col] of bands){ const yT=cy-(hi-value)*ppu, yB=cy-(lo-value)*ppu;
+        px.fillStyle=col; px.fillRect(sx, yT, sw, yB-yT); } }
+    const numX=inL?cx+5:cx-5;
+    px.font='600 15px '+FAM; px.fillStyle=G1K.wht; px.strokeStyle=G1K.wht; px.textBaseline='middle';
+    const topV=value+half/ppu, botV=value-half/ppu, first=Math.ceil(botV/minor)*minor;
+    for(let v=first; v<=topV; v+=minor){ if(v<-0.001) continue;
+      const y=cy-(v-value)*ppu, mj=(Math.round(v)%major===0);
+      px.lineWidth=1.3; px.beginPath();
+      if(inL){ px.moveTo(edge,y); px.lineTo(edge-(mj?12:6),y); } else { px.moveTo(edge,y); px.lineTo(edge+(mj?12:6),y); }
+      px.stroke();
+      if(mj){ px.textAlign=inL?'left':'right'; px.fillText(fmt(v), numX, y); }
+    }
+    px.restore();
+    // live-value box (black, white text) with a notch pointing to the scale
+    const bh=38, nt=9;
+    px.beginPath();
+    if(inL){ px.moveTo(cx,cy-bh/2); px.lineTo(edge,cy-bh/2); px.lineTo(edge,cy-nt);
+      px.lineTo(edge+nt,cy); px.lineTo(edge,cy+nt); px.lineTo(edge,cy+bh/2); px.lineTo(cx,cy+bh/2); }
+    else{ px.moveTo(cx,cy-bh/2); px.lineTo(edge,cy-bh/2); px.lineTo(edge,cy-nt);
+      px.lineTo(edge-nt,cy); px.lineTo(edge,cy+nt); px.lineTo(edge,cy+bh/2); px.lineTo(cx,cy+bh/2); }
+    px.closePath(); px.fillStyle=G1K.box; px.fill(); px.strokeStyle=G1K.wht; px.lineWidth=1.6; px.stroke();
+    px.fillStyle=G1K.wht; px.font='700 23px '+FAM; px.textAlign='center'; px.textBaseline='middle';
+    px.fillText(boxStr, inL?cx+w/2:cx-w/2, cy);
+  }
+  // vertical-speed indicator: a thin scale right of the altitude tape with a pointer
+  function g1kVSI(x, vs){
+    const cy=CYc, h=150, ppm=h/2000;                        // ±2000 fpm over half-height
+    px.fillStyle=G1K.tape; px.fillRect(x, cy-h, 48, h*2);
+    px.strokeStyle='rgba(210,225,235,.4)'; px.fillStyle=G1K.dim; px.font='600 11px '+FAM;
+    px.textAlign='left'; px.textBaseline='middle';
+    for(let v=-2000;v<=2000;v+=1000){ const y=cy-v*ppm;
+      px.lineWidth=1.2; px.beginPath(); px.moveTo(x,y); px.lineTo(x+(v%2000===0?9:5),y); px.stroke();
+      if(v!==0&&v%2000===0) px.fillText(String(Math.abs(v/1000)), x+11, y); }
+    const vy=cy-Math.max(-2100,Math.min(2100,vs))*ppm;
+    px.fillStyle=G1K.box; px.strokeStyle=G1K.wht; px.lineWidth=1.4;
+    px.beginPath(); px.moveTo(x,vy); px.lineTo(x+12,vy-11); px.lineTo(x+46,vy-11);
+    px.lineTo(x+46,vy+11); px.lineTo(x+12,vy+11); px.closePath(); px.fill(); px.stroke();
+    if(Math.abs(vs)>=50){ px.fillStyle=G1K.wht; px.font='700 13px '+FAM; px.textAlign='center';
+      px.fillText(String(Math.round(vs/50)*50), x+28, vy); }
+  }
+  // altitude-tape colour overlays: cyan selected-altitude bug + readout, magenta trend vector
+  function g1kAltExtras(cx,w,value,ppu,vs){
+    const cy=CYc, half=176, edge=cx-w;
+    // plausible "cleared" altitude: round to nearest 500 in the direction we're moving
+    const selAlt = vs<-40 ? Math.floor(value/500)*500 : vs>40 ? Math.ceil(value/500)*500 : Math.round(value/500)*500;
+    // cyan selected-altitude readout box, above the tape
+    px.fillStyle=G1K.box; px.strokeStyle=G1K.cyan; px.lineWidth=1.4;
+    px.fillRect(edge, cy-half-42, w, 28); px.strokeRect(edge, cy-half-42, w, 28);
+    px.fillStyle=G1K.cyan; px.font='700 21px '+FAM; px.textAlign='center'; px.textBaseline='middle';
+    px.fillText(String(selAlt), edge+w/2, cy-half-27);
+    // clip to the tape (with a little left margin so edge bugs show) for the bug + trend
+    px.save(); px.beginPath(); px.rect(edge-14, cy-half, w+14, half*2); px.clip();
+    // cyan selected-altitude bug (bracket, points into the tape) on the inner edge
+    const by=cy-(selAlt-value)*ppu;
+    px.fillStyle=G1K.cyan; px.beginPath();
+    px.moveTo(edge,by-9); px.lineTo(edge-13,by-9); px.lineTo(edge-13,by+9); px.lineTo(edge,by+9);
+    px.lineTo(edge,by+4); px.lineTo(edge-6,by); px.lineTo(edge,by-4); px.closePath(); px.fill();
+    // magenta altitude trend vector — 6-second projection from vertical speed
+    if(Math.abs(vs)>30){ const ty=cy-(vs*6/60)*ppu, dir=ty<cy?-1:1;
+      px.strokeStyle=G1K.mag; px.lineWidth=4; px.lineCap='butt';
+      px.beginPath(); px.moveTo(edge-3,cy); px.lineTo(edge-3,ty); px.stroke();
+      px.fillStyle=G1K.mag; px.beginPath(); px.moveTo(edge-3,ty);
+      px.lineTo(edge-8,ty-dir*8); px.lineTo(edge+2,ty-dir*8); px.closePath(); px.fill(); }
+    px.restore();
+  }
+  // horizontal situation indicator: rotating compass, HDG/CRS bugs, GPS course + bearing pointer
+  function g1kHSI(a, trk, brg, rng){
+    const cx=CXc, cy=600, R=112;
+    const hdgBug = brg!=null?Math.round(brg):Math.round(trk);   // selected heading (fly toward the field)
+    const crs = brg!=null?Math.round(brg):null;                 // GPS course to the home waypoint
+    const vor=nearVOR();                                        // green bearing pointer target
+    let vd=null, vbrg=null;
+    if(vor&&a){ vd=Math.hypot((vor.lat-a.lat), (vor.lon-a.lon)*cosL)*60;
+      vbrg=(Math.atan2((vor.lon-a.lon)*cosL, (vor.lat-a.lat))/D2R+360)%360; }
+    px.fillStyle='rgba(6,10,14,.78)'; px.beginPath(); px.arc(cx,cy,R+12,0,7); px.fill();
+    // ---- rotating compass card ----
+    px.save(); px.translate(cx,cy);
+    px.textAlign='center'; px.textBaseline='middle';
+    for(let h=0;h<360;h+=5){ const rel=(h-trk)*D2R, mj=(h%30===0);
+      const sx=Math.sin(rel), sy=-Math.cos(rel);
+      px.strokeStyle=G1K.wht; px.lineWidth=mj?2:1;
+      px.beginPath(); px.moveTo(sx*R,sy*R); px.lineTo(sx*(R-(mj?14:8)),sy*(R-(mj?14:8))); px.stroke();
+      if(mj){ const lbl=(h===0?'N':h===90?'E':h===180?'S':h===270?'W':String(h/10));
+        px.save(); px.translate(sx*(R-28),sy*(R-28)); px.rotate(rel);
+        px.fillStyle=G1K.wht; px.font='700 14px '+FAM; px.fillText(lbl,0,0); px.restore(); } }
+    // cyan heading bug on the ring
+    { px.save(); px.rotate((hdgBug-trk)*D2R);
+      px.fillStyle=G1K.cyan; px.beginPath();
+      px.moveTo(-9,-R+3); px.lineTo(-9,-R-4); px.lineTo(-3,-R-4); px.lineTo(0,-R); px.lineTo(3,-R-4);
+      px.lineTo(9,-R-4); px.lineTo(9,-R+3); px.closePath(); px.fill(); px.restore(); }
+    // green bearing pointer to the nearest VOR (BRG1) — single arrow, double-bar tail
+    if(vbrg!=null){ px.save(); px.rotate((vbrg-trk)*D2R);
+      px.strokeStyle=G1K.grn; px.fillStyle=G1K.grn; px.lineWidth=2.5;
+      px.beginPath(); px.moveTo(0,-(R-4)); px.lineTo(0,-(R-30)); px.stroke();
+      px.beginPath(); px.moveTo(0,-(R-1)); px.lineTo(-6,-(R-13)); px.lineTo(6,-(R-13)); px.closePath(); px.fill();
+      px.beginPath(); px.moveTo(-5,(R-6)); px.lineTo(-5,(R-20)); px.moveTo(5,(R-6)); px.lineTo(5,(R-20)); px.stroke();
+      px.restore(); }
+    // magenta GPS course pointer + centered CDI deviation bar
+    if(crs!=null){ px.save(); px.rotate((crs-trk)*D2R);
+      px.strokeStyle=G1K.mag; px.fillStyle=G1K.mag; px.lineWidth=3.5; px.lineCap='round';
+      px.beginPath(); px.moveTo(0,-(R-4)); px.lineTo(0,-46); px.stroke();               // course arrow shaft
+      px.beginPath(); px.moveTo(0,-(R+2)); px.lineTo(-9,-(R-16)); px.lineTo(9,-(R-16)); px.closePath(); px.fill();
+      px.beginPath(); px.moveTo(0,46); px.lineTo(0,(R-4)); px.stroke();                  // reciprocal tail
+      px.lineWidth=4; px.beginPath(); px.moveTo(0,-42); px.lineTo(0,42); px.stroke();     // CDI (on course)
+      px.fillStyle=G1K.wht; for(const dx of [-42,-21,21,42]){ px.beginPath(); px.arc(dx,0,2.6,0,7); px.fill(); }
+      px.restore(); }
+    px.restore();
+    // ---- fixed overlays ----
+    // GPS / TERM annunciations inside the rose
+    px.fillStyle=G1K.mag; px.font='700 12px '+FAM; px.textAlign='center'; px.textBaseline='middle';
+    px.fillText('GPS', cx-36, cy-15); px.fillText('TERM', cx+37, cy-15);
+    // own-ship white aircraft symbol
+    px.strokeStyle=G1K.wht; px.lineWidth=2.4; px.lineCap='round';
+    px.beginPath(); px.moveTo(cx,cy-12); px.lineTo(cx,cy+13); px.moveTo(cx-13,cy); px.lineTo(cx+13,cy);
+    px.moveTo(cx-6,cy+10); px.lineTo(cx+6,cy+10); px.stroke();
+    // lubber triangle + heading readout box (white, with °)
+    px.fillStyle=G1K.wht; px.beginPath(); px.moveTo(cx,cy-R-2); px.lineTo(cx-7,cy-R-13); px.lineTo(cx+7,cy-R-13); px.closePath(); px.fill();
+    px.fillStyle=G1K.box; px.strokeStyle=G1K.wht; px.lineWidth=1.4; px.fillRect(cx-33,cy-R-41,66,25); px.strokeRect(cx-33,cy-R-41,66,25);
+    px.fillStyle=G1K.wht; px.font='700 18px '+FAM; px.textAlign='center'; px.textBaseline='middle';
+    px.fillText(String(Math.round(trk)%360).padStart(3,'0')+'°', cx, cy-R-28);
+    // HDG box (cyan, upper-left) and CRS box (magenta, upper-right)
+    const tagBox=(x,tag,val,col)=>{ const bw=68,bh=22,y=cy-R-9;
+      px.fillStyle=G1K.box; px.strokeStyle='rgba(210,225,235,.4)'; px.lineWidth=1;
+      px.fillRect(x,y,bw,bh); px.strokeRect(x,y,bw,bh);
+      px.fillStyle=col; px.font='600 10px '+FAM; px.textAlign='left'; px.textBaseline='middle'; px.fillText(tag,x+5,y+bh/2);
+      px.font='700 13px '+FAM; px.textAlign='right'; px.fillText(val,x+bw-5,y+bh/2); };
+    tagBox(cx-R-74,'HDG',String(hdgBug).padStart(3,'0')+'°',G1K.cyan);
+    tagBox(cx+R+6,'CRS',crs!=null?String(crs).padStart(3,'0')+'°':'---°',G1K.mag);
+    // bottom-left: nearest-VOR bearing source (green); bottom-right: direct-to home field (GPS, magenta)
+    const wpBox=(x,al,dist,ident,src,srcCol)=>{ const y=cy+R-22;
+      const l1=dist!=null?dist.toFixed(1)+' NM':'-- NM', l2=ident||'----';
+      px.textBaseline='middle';
+      px.font='700 14px '+FAM; let mw=px.measureText(l1).width;
+      px.font='700 13px '+FAM; mw=Math.max(mw,px.measureText(l2).width);
+      px.font='600 12px '+FAM; mw=Math.max(mw,px.measureText(src).width);
+      const pad=8, bw=mw+pad*2, bh=58, boxY=y-16, boxL=(al==='left')?x-pad:x-bw+pad, ch=14;
+      // chamfer the top corner that faces the compass (top-right for the left box, top-left for the right)
+      px.beginPath();
+      if(al==='left'){ px.moveTo(boxL,boxY); px.lineTo(boxL+bw-ch,boxY); px.lineTo(boxL+bw,boxY+ch);
+        px.lineTo(boxL+bw,boxY+bh); px.lineTo(boxL,boxY+bh); }
+      else{ px.moveTo(boxL+ch,boxY); px.lineTo(boxL+bw,boxY); px.lineTo(boxL+bw,boxY+bh);
+        px.lineTo(boxL,boxY+bh); px.lineTo(boxL,boxY+ch); }
+      px.closePath();
+      px.fillStyle='rgba(2,4,6,.94)'; px.fill();
+      px.strokeStyle='rgba(120,140,160,.45)'; px.lineWidth=1; px.stroke();
+      px.textAlign=al;
+      px.fillStyle=G1K.wht;  px.font='700 14px '+FAM; px.fillText(l1,x,y);
+      px.fillStyle=G1K.cyan; px.font='700 13px '+FAM; px.fillText(l2,x,y+19);
+      px.fillStyle=srcCol;   px.font='600 12px '+FAM; px.fillText(src,x,y+37); };
+    wpBox(cx-R-70,'left', rng, HOME.id, 'GPS', G1K.mag);
+    wpBox(cx+R+70,'right', vd, vor?vor.id:null, 'VOR', G1K.grn);
+  }
+  // top frequency bar — shows the ATC channel we're scanning as the active COM
+  // altimeter (Kollsman) setting from the home field's METAR, e.g. "29.92 IN"
+  function g1kBaro(){
+    const m=(typeof metars!=='undefined')?metars[HOME.id]:null;
+    const mm=m&&m.rawOb&&m.rawOb.match(/\bA(\d{4})\b/);
+    if(mm) return mm[1].slice(0,2)+'.'+mm[1].slice(2);
+    if(m&&m.altim){ const v=m.altim>200?m.altim*0.02953:m.altim; return v.toFixed(2); }
+    return '29.92';
+  }
+  // surface air temperature (°C) from the home field's METAR
+  function homeOAT(){
+    const m=(typeof metars!=='undefined')?metars[HOME.id]:null;
+    if(m&&m.temp!=null) return m.temp;
+    const mm=m&&m.rawOb&&m.rawOb.match(/\s(M?\d{2})\/(M?\d{2})\s/);
+    if(mm){ const s=mm[1]; return s[0]==='M'?-parseInt(s.slice(1)):parseInt(s); }
+    return null;
+  }
+  // best-effort TRUE airspeed (ADS-B gives ground speed; alt_baro is pressure altitude @29.92)
+  function computeTAS(a){
+    if(a.tasF) return a.tasF;                                 // broadcast TAS (Comm-B) if available
+    const surfT=homeOAT();
+    const oatC=(surfT!=null?surfT:15) - 1.98*(a.alt/1000);    // OAT at the aircraft's altitude
+    const Tk=oatC+273.15;
+    if(a.machF) return a.machF*38.9679*Math.sqrt(Tk);         // TAS = Mach · speed of sound (kt)
+    if(a.iasF){ const PA=a.alt;                               // IAS → TAS via density-altitude ratio
+      const sigma=Math.pow(1-6.8756e-6*PA,5.2559)*(288.15/Tk);
+      return a.iasF/Math.sqrt(sigma); }
+    const m=(typeof metars!=='undefined')?metars[HOME.id]:null;   // fall back: GS corrected for surface wind
+    if(m&&m.wspd!=null&&m.wdir!=null&&a.trk!=null)
+      return Math.max(0, a.gs + m.wspd*Math.cos((m.wdir-a.trk)*D2R));
+    return a.gs;
+  }
+  // local time at the home field, derived from UTC + longitude zone offset (+US DST) so it is
+  // correct even if the display device's own clock/timezone is wrong (e.g. a TV set to UTC)
+  function fieldLocalTime(){
+    const now=new Date(), utcMs=now.getTime();               // getTime() is already absolute UTC
+    let offH=Math.round(HOME.lon/15);                        // zone offset from longitude
+    const y=now.getUTCFullYear();
+    const nthSun=(mo,n)=>{ const d=new Date(Date.UTC(y,mo,1)); const day=1+((7-d.getUTCDay())%7)+7*(n-1); return Date.UTC(y,mo,day,2,0,0); };
+    if(utcMs>=nthSun(2,2) && utcMs<nthSun(10,1)) offH+=1;     // US/Canada DST: 2nd Sun Mar → 1st Sun Nov
+    return new Date(utcMs+offH*3600000);                     // read back with getUTC* → field-local
+  }
+  function homeILS(){                                       // an ILS serving the home field
+    if(!(NAV&&NAV.appr)) return null;
+    for(const A of NAV.appr){ if(A.ils&&A.final&&A.final.length){
+      const RW=A.final[A.final.length-1];
+      if(Math.hypot((RW.lat-HOME.lat)*60,(RW.lon-HOME.lon)*60)<6) return A.ils; } }
+    for(const A of NAV.appr) if(A.ils) return A.ils;
+    return null;
+  }
+  function nearVOR(){                                       // nearest VOR to the field
+    if(!(NAV&&NAV.vors)) return null;
+    let best=null,bd=1e9;
+    for(const v of NAV.vors){ if(!v.f) continue;
+      const d=Math.hypot((v.lat-HOME.lat)*60,(v.lon-HOME.lon)*60); if(d<bd){bd=d;best=v;} }
+    return best;
+  }
+  // top bar laid out like a real avionics radio stack: COM1/COM2 (active + standby) on
+  // the left, NAV1/NAV2 on the right, the magenta GPS waypoint (BRG/RNG) in the centre.
+  function g1kTopBar(a,dap,destBrg,destRng,vs){
+    px.fillStyle='rgba(4,6,9,.94)'; px.fillRect(0,0,W,64);
+    px.strokeStyle='rgba(120,140,160,.4)'; px.lineWidth=1; px.beginPath(); px.moveTo(0,64); px.lineTo(W,64); px.stroke();
+    px.textBaseline='middle';
+    const act=(typeof activeCh!=='undefined'&&activeCh)||(typeof manualCh!=='undefined'&&manualCh)||null;
+    const chans=((typeof CONFIG!=='undefined'&&CONFIG.atcChannels)||[]).filter(c=>c.mount!=='REPLACE_ME');
+    const cLabel=c=>c?((c.label||c.mount).replace(/^[A-Z]{3,4}\s+/,'')||c.label):'---';
+    const live=c=>act&&c&&act.mount===c.mount&&act.level>0.02;
+    // NAV1 = ILS into home field, NAV2 = nearest navaid (real MHz) -- top-LEFT, active ↔ standby like a real G1000
+    const ils=homeILS(), vor=nearVOR();
+    const navRow=(y,lbl,actf,stby,ident)=>{
+      const x=20; px.textAlign='left';
+      px.fillStyle=G1K.cyan; px.font='600 11px '+FAM; px.fillText(lbl,x,y);
+      px.fillStyle=G1K.grn;  px.font='700 16px '+FAM; px.fillText(actf,x+42,y);
+      const aw=px.measureText(actf).width;
+      px.fillStyle='#3a9dff'; px.font='700 16px '+FAM; px.fillText('↔',x+42+aw+9,y);   // blue swap arrow
+      px.fillStyle=G1K.wht;  px.font='700 16px '+FAM; px.fillText(stby,x+42+aw+28,y);
+      if(ident){ const sw=px.measureText(stby).width; px.fillStyle=G1K.cyan; px.font='600 11px '+FAM; px.fillText(ident,x+42+aw+28+sw+10,y); }
+    };
+    const ilsF=ils&&ils.f?ils.f.toFixed(2):'---.--', vorF=vor?vor.f.toFixed(2):'---.--';
+    navRow(20,'NAV1', ilsF, vorF, ils?('I-'+(ils.ident||'').replace(/^I-?/,'')):'');
+    navRow(46,'NAV2', vorF, ilsF, vor?vor.id:'');
+    // COM stack -- top-RIGHT, active ↔ standby; only COM1 (the selected radio) shows the swap arrow
+    const cc=(dap&&dap.comm)?dap.comm.split(/\s+/):null;   // e.g. ["TWR","118.30"]
+    const comFreq=cc?(parseFloat(cc[1])||0).toFixed(3):'---.---';
+    // COM1 = field tower/CTAF (active) ↔ 121.500 guard (standby)
+    let x=W-14; px.textAlign='right';
+    px.fillStyle=G1K.cyan; px.font='600 11px '+FAM; px.fillText('COM1',x,20); x-=px.measureText('COM1').width+12;
+    px.fillStyle=G1K.wht;  px.font='700 16px '+FAM; px.fillText('121.500',x,20); x-=px.measureText('121.500').width+9;
+    px.fillStyle='#3a9dff';px.font='700 16px '+FAM; px.fillText('↔',x,20);       x-=px.measureText('↔').width+9;
+    px.fillStyle=G1K.grn;  px.font='700 16px '+FAM; px.fillText(comFreq,x,20);
+    // COM2 = the approach/centre feed we actually monitor (active), tower freq on standby
+    const ch2=chans.find(c=>/app|dep|ctr|cen/i.test(c.label||c.mount))||chans[1]||chans[0];
+    const sby2=comFreq!=='---.---'?comFreq:'121.900';   // tower on standby, ready to switch back
+    let x2=W-14;
+    px.fillStyle=G1K.cyan; px.font='600 11px '+FAM; px.fillText('COM2',x2,46); x2-=px.measureText('COM2').width+12;
+    px.fillStyle=G1K.wht;  px.font='700 16px '+FAM; px.fillText(sby2,x2,46); x2-=px.measureText(sby2).width+14;
+    px.fillStyle=live(ch2)?G1K.grn:G1K.wht; px.font='700 15px '+FAM; px.fillText(cLabel(ch2).toUpperCase(),x2,46);
+    // centre: AFCS-style status strip -- autopilot modes, active waypoint + ATIS, DIS/BRG
+    const bw=470, bx=CXc-bw/2, by=6, bh=52;
+    px.fillStyle='rgba(10,16,22,.72)'; px.fillRect(bx,by,bw,bh);
+    px.strokeStyle='rgba(120,140,160,.35)'; px.lineWidth=1; px.strokeRect(bx,by,bw,bh);
+    px.textBaseline='middle';
+    // ROW 1 -- active waypoint + ATIS (left), DIS/BRG to destination (right)
+    px.textAlign='left';
+    px.fillStyle=G1K.mag; px.font='700 15px '+FAM; px.fillText('▷ '+HOME.id, bx+12, 20);
+    const wpW=px.measureText('▷ '+HOME.id).width;
+    const atisC=(typeof atisTxt!=='undefined'&&atisTxt&&atisTxt.code)?atisTxt.code:'--';
+    px.fillStyle=G1K.cyan; px.font='600 12px '+FAM; px.fillText('ATIS '+atisC, bx+12+wpW+14, 20);
+    px.textAlign='right';
+    px.fillStyle=G1K.wht; px.font='700 13px '+FAM;
+    px.fillText('DIS '+(destRng!=null?destRng.toFixed(1):'--')+' NM', bx+bw-118, 20);
+    px.fillStyle=G1K.mag; px.font='700 15px '+FAM;
+    px.fillText('BRG '+(destBrg!=null?String(Math.round(destBrg)).padStart(3,'0'):'---')+'°', bx+bw-12, 20);
+    // divider
+    px.strokeStyle='rgba(120,140,160,.25)'; px.beginPath(); px.moveTo(bx+8,by+bh/2); px.lineTo(bx+bw-8,by+bh/2); px.stroke();
+    // ROW 2 -- autopilot annunciations: lateral (GPS) | AP engaged | vertical (VS) | ALT armed
+    px.textBaseline='middle'; px.textAlign='left';
+    px.fillStyle=G1K.grn; px.font='700 13px '+FAM; px.fillText('GPS', bx+12, 44);
+    // AP in a green box, like the real annunciator
+    px.font='700 13px '+FAM; const apW=px.measureText('AP').width;
+    px.strokeStyle=G1K.grn; px.lineWidth=1.2; px.strokeRect(bx+48, 44-9, apW+10, 18);
+    px.fillStyle=G1K.grn; px.fillText('AP', bx+53, 44);
+    // vertical mode + VS value (right side of the strip)
+    px.textAlign='right';
+    px.fillStyle=G1K.cyan; px.font='700 12px '+FAM; px.fillText('ALTS', bx+bw-12, 44);
+    const vsr=Math.round((vs||0)/10)*10;
+    px.fillStyle=G1K.grn; px.font='700 13px '+FAM;
+    px.fillText('VS '+(vsr>0?'+':'')+vsr+' FPM', bx+bw-56, 44);
+  }
+  // small north-up moving-map inset, bottom-left
+  function g1kInset(a){
+    const x0=14,y0=552,w=134,h=134, cx=x0+w/2, cy=y0+h/2, rngNm=25, ppm=(h/2-8)/rngNm;
+    px.fillStyle='rgba(4,8,12,.84)'; px.fillRect(x0,y0,w,h);
+    px.strokeStyle='rgba(120,140,160,.45)'; px.lineWidth=1; px.strokeRect(x0,y0,w,h);
+    px.save(); px.beginPath(); px.rect(x0,y0,w,h); px.clip();
+    const P=(lat,lon)=>({x:cx+(lon-a.lon)*cosL*60*ppm, y:cy-(lat-a.lat)*60*ppm});
+    px.strokeStyle='rgba(120,140,160,.25)';
+    for(const rr of [12.5,25]){ px.beginPath(); px.arc(cx,cy,rr*ppm,0,7); px.stroke(); }
+    if(NAV&&NAV.apts) for(const ap of NAV.apts){ const s=P(ap.lat,ap.lon), home=ap.id.trim()===HOME.id;
+      px.fillStyle=home?G1K.mag:'rgba(150,170,185,.85)'; px.beginPath(); px.arc(s.x,s.y,home?3.6:2,0,7); px.fill(); }
+    for(const o of AC){ if(o===a) continue; const s=P(o.lat,o.lon);
+      if(s.x<x0||s.x>x0+w||s.y<y0||s.y>y0+h) continue;
+      px.fillStyle=acColor(o); px.fillRect(s.x-2,s.y-2,4,4); }
+    px.save(); px.translate(cx,cy); px.rotate((a.trk||0)*D2R);   // own-ship, north-up
+    px.fillStyle=G1K.yel; px.beginPath(); px.moveTo(0,-8); px.lineTo(6,7); px.lineTo(0,3.5); px.lineTo(-6,7); px.closePath(); px.fill(); px.restore();
+    px.restore();
+    px.fillStyle=G1K.cyan; px.font='600 11px '+FAM; px.textAlign='left'; px.textBaseline='alphabetic'; px.fillText('MAP',x0+7,y0+15);
+    px.fillStyle=G1K.dim; px.textAlign='right'; px.fillText(rngNm+' NM  N↑',x0+w-7,y0+15);
+  }
+  // aircraft ID block, bottom-right — callsign / squawk / route each a distinct colour
+  function g1kInfoBlock(a){
+    const rx=W-18; let ry=H-92;
+    px.textAlign='right'; px.textBaseline='alphabetic';
+    px.fillStyle=G1K.wht;  px.font='700 19px '+FAM; px.fillText(a.cs, rx, ry);            // callsign: white
+    if(a.sq){ px.fillStyle='#ffb02e'; px.font='600 15px '+FAM; px.fillText('SQ '+a.sq, rx, ry+22); }  // squawk: amber
+    if(a.rte){ px.fillStyle=G1K.cyan; px.font='600 15px '+FAM; px.fillText(a.rte.replace(/-/,' → '), rx, ry+44); } // route: cyan
+    else if(a.t){ px.fillStyle=G1K.cyan; px.font='600 15px '+FAM; px.fillText(a.t, rx, ry+44); }
+  }
+  // bottom-status strip, lower-right: transponder (code + mode) and local time, in a black box
+  function g1kXpdr(a){
+    const y=H-16; px.textBaseline='middle';
+    const t=fieldLocalTime(), hh=String(t.getUTCHours()).padStart(2,'0'), mm=String(t.getUTCMinutes()).padStart(2,'0'), ss=String(t.getUTCSeconds()).padStart(2,'0');
+    const ts=hh+':'+mm+':'+ss;
+    const mode=(a&&a.alt>0)?'ALT':'GND';                         // ALT airborne, GND on the surface
+    const code=(a&&a.sq)?String(a.sq):'----';
+    const emerg=/^(7500|7600|7700)$/.test(code);
+    // measure the whole strip so the black box wraps it exactly
+    let total=0;
+    px.font='600 12px '+FAM; total+=px.measureText('XPDR').width+8;
+    px.font='700 16px '+FAM; const cw=px.measureText(code).width; total+=cw+8;
+    px.font='700 14px '+FAM; total+=px.measureText(mode).width+24;
+    px.font='600 12px '+FAM; total+=px.measureText('LCL').width+7;
+    px.font='700 15px '+FAM; total+=px.measureText(ts).width;
+    const boxR=W-6, boxL=W-14-total-10, boxY=y-15, boxH=30;
+    px.fillStyle='rgba(2,4,6,.94)'; px.fillRect(boxL,boxY,boxR-boxL,boxH);
+    px.strokeStyle='rgba(120,140,160,.45)'; px.lineWidth=1; px.strokeRect(boxL,boxY,boxR-boxL,boxH);
+    // draw the strip right-to-left
+    px.textAlign='right'; let x=W-14;
+    px.fillStyle=G1K.wht; px.font='700 15px '+FAM; px.fillText(ts,x,y); x-=px.measureText(ts).width+7;
+    px.fillStyle=G1K.cyan; px.font='600 12px '+FAM; px.fillText('LCL',x,y); x-=px.measureText('LCL').width+24;
+    px.fillStyle=G1K.grn; px.font='700 14px '+FAM; px.fillText(mode,x,y); x-=px.measureText(mode).width+8;
+    px.font='700 16px '+FAM;
+    if(emerg){ px.fillStyle='#c0392b'; px.fillRect(x-cw-5,y-11,cw+8,22); }
+    px.fillStyle=emerg?G1K.wht:G1K.grn; px.fillText(code,x,y); x-=cw+8;
+    px.fillStyle=G1K.cyan; px.font='600 12px '+FAM; px.fillText('XPDR',x,y);
+    return boxL;
+  }
+  // OAT + ISA deviation in a black box, bottom-left (the real G1000 position)
+  function g1kOAT(alt0){
+    const y=H-16; px.textBaseline='middle';
+    const surfT=homeOAT();
+    const oat = surfT!=null ? Math.round(surfT - 1.98*(alt0/1000)) : null;   // std lapse to aircraft altitude
+    const isa = surfT!=null ? Math.round(surfT - 15) : null;                 // ISA deviation
+    const oatS = oat!=null ? (oat>0?'+':'')+oat+'°C' : '--°C';
+    const isaS = 'ISA '+(isa!=null ? (isa>=0?'+':'')+isa+'°' : '--');
+    let total=0;
+    px.font='600 12px '+FAM; total+=px.measureText('OAT').width+8;
+    px.font='700 15px '+FAM; total+=px.measureText(oatS).width+16;
+    px.font='700 13px '+FAM; total+=px.measureText(isaS).width;
+    const boxL=14, boxW=total+16, boxY=y-15, boxH=30;
+    px.fillStyle='rgba(2,4,6,.94)'; px.fillRect(boxL,boxY,boxW,boxH);
+    px.strokeStyle='rgba(120,140,160,.45)'; px.lineWidth=1; px.strokeRect(boxL,boxY,boxW,boxH);
+    px.textAlign='left'; let x=boxL+8;
+    px.fillStyle=G1K.cyan; px.font='600 12px '+FAM; px.fillText('OAT',x,y); x+=px.measureText('OAT').width+8;
+    px.fillStyle=G1K.wht;  px.font='700 15px '+FAM; px.fillText(oatS,x,y); x+=px.measureText(oatS).width+16;
+    px.fillStyle=G1K.grn;  px.font='700 13px '+FAM; px.fillText(isaS,x,y);
+  }
+  function drawG1000(a,gs,alt0,agl,mach,vs,dap,destBrg,destRng){
+    drawAirports(a); drawDestination(a); drawTraffic(a);    // synthetic-vision world (incl. home runway) + click targets
+    g1kRollArc(); g1kPitchLadder(); g1kAircraftSym();
+    g1kTape(150,110,'left',gs, 2.4,10,20, String(Math.round(gs)), 'GS KT', null, true);
+    g1kTape(W-150,110,'right',alt0, 0.075,100,500, String(Math.round(alt0)),null);
+    g1kAltExtras(W-150,110,alt0,0.075,vs);
+    g1kVSI(W-146, vs);
+    { const ils=activeILS(a); if(ils) drawILSNeedles(ils, G1K.mag, CYc+92); }  // GS/LOC when on the ILS
+    g1kHSI(a, a.trk||0, destBrg, destRng);
+    g1kInset(a); g1kInfoBlock(a); g1kXpdr(a); g1kOAT(alt0);
+    g1kTopBar(a,dap,destBrg,destRng,vs);
+    // under-tape readouts — TAS box under the airspeed (left), BARO + AGL under the altitude (right)
+    px.textAlign='center'; px.textBaseline='middle';
+    { const tas=Math.round(computeTAS(a)), s=String(tas)+'KT', cxT=150+55;
+      px.font='600 11px '+FAM; const lw=px.measureText('TAS').width;
+      px.font='700 14px '+FAM; const vw=px.measureText(s).width;
+      const bw=Math.max(66, lw+vw+22);                          // fit the label AND the value
+      px.fillStyle=G1K.box; px.strokeStyle='rgba(210,225,235,.4)'; px.lineWidth=1;
+      px.fillRect(cxT-bw/2, CYc+186, bw, 24); px.strokeRect(cxT-bw/2, CYc+186, bw, 24);
+      px.fillStyle=G1K.dim; px.font='600 11px '+FAM; px.textAlign='left'; px.fillText('TAS',cxT-bw/2+7,CYc+198);
+      px.fillStyle=G1K.wht; px.font='700 14px '+FAM; px.textAlign='right'; px.fillText(s,cxT+bw/2-7,CYc+198); }
+    // BARO (Kollsman) setting in a cyan box directly under the altitude tape, like the real unit
+    { const cxT=W-150-55, bs=g1kBaro()+' IN';
+      px.font='700 16px '+FAM; const bw=Math.max(74, px.measureText(bs).width+18);
+      px.fillStyle=G1K.box; px.strokeStyle=G1K.cyan; px.lineWidth=1.3;
+      px.fillRect(cxT-bw/2, CYc+184, bw, 26); px.strokeRect(cxT-bw/2, CYc+184, bw, 26);
+      px.fillStyle=G1K.cyan; px.font='700 16px '+FAM; px.textAlign='center'; px.textBaseline='middle';
+      px.fillText(bs, cxT, CYc+197); }
+    px.fillStyle=G1K.dim; px.font='600 11px '+FAM; px.textAlign='center'; px.textBaseline='alphabetic';
+    px.fillText(agl+' AGL', W-150-55, CYc+226);
+  }
   function draw(){
     const a=selected;
     px.setTransform(SX,0,0,SY,0,0);
-    // sky gradient
+    // sky gradient (brighter, sky-blue for the Garmin skin; dark navy for the fighter HUD)
     let sk=px.createLinearGradient(0,0,0,H);
-    sk.addColorStop(0,'#0a1c33'); sk.addColorStop(.55,'#14406e'); sk.addColorStop(1,'#2f6ea8');
+    if(skin==='g1000'){ sk.addColorStop(0,'#0c4f9e'); sk.addColorStop(.5,'#1f7fd6');
+      sk.addColorStop(1,'#4aa0e6'); }
+    else{ sk.addColorStop(0,'#0a1c33'); sk.addColorStop(.55,'#14406e'); sk.addColorStop(1,'#2f6ea8'); }
     px.fillStyle=sk; px.fillRect(0,0,W,H);
     if(!a){ px.fillStyle='#7fe89a'; px.font='20px '+FAM; px.textAlign='center';
       px.textBaseline='middle'; px.fillText('NO AIRCRAFT SELECTED',W/2,H/2);
@@ -2574,41 +3943,75 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     title.innerHTML=a.cs+' <small>'+(a.t?a.t+' · ':'')+'FIRST-PERSON HUD</small>';
     // camera
     lat0=a.lat; lon0=a.lon; alt0=a.alt||0; cosL=Math.cos(lat0*D2R);
+    // keep the eye above the terrain surface: ADS-B baro alt can read below the DEM
+    // ground (esp. on/near the field), which would put the camera underground and make
+    // the world look upside-down (ground on top, sky below). Clamp to ~180 ft above ground.
+    camAlt=Math.max(alt0, groundM(a.lat,a.lon)*3.28084+180);
     const tgt=att(a); pB+=(tgt.bank-pB)*0.12; pP+=(tgt.fpa-pP)*0.12;
     hr=(a.trk||0)*D2R; pit=pP*D2R; rol=-pB*D2R;             // world rolls opposite bank
     // world (far → near): terrain, other airports, destination field, traffic
-    drawTerrain(); drawAirports(a); drawDestination(a); drawTraffic(a);
-    // HUD symbology
-    pitchLadder(); bankScale(); velVector(); headingTape(a.trk||0);
+    if(hudGLTerrain()) px.drawImage(r3el, 0, CYc-H/2, W, H);  // real GPU mountains + horizon
+    else drawTerrain();                                       // low-res baked fallback
+    // shared derived flight values (used by both PFD skins)
     const gs=a.gs||0;
     const agl=Math.max(0,Math.round((alt0-groundM(a.lat,a.lon)*3.28084)/10)*10);
-    box(70,'left','GS  KT', String(Math.round(gs)));
-    box(W-70,'right','ALT  FT', String(Math.round(alt0)), agl+' AGL');
-    // Mach & G (left/right of the aircraft datum)
     const sndKt=661.5*Math.sqrt(Math.max(0.2,1-6.875e-6*Math.min(alt0,36000)));
-    const mach=gs/sndKt, gload=1/Math.cos(Math.min(80,Math.abs(pB))*D2R);
-    px.fillStyle=GRN; px.textBaseline='middle'; px.font='600 15px '+FAM;
-    px.textAlign='left';  px.fillText('M '+mach.toFixed(2), 70, CYc+70);
-    px.textAlign='right'; px.fillText(gload.toFixed(1)+' G', W-70, CYc+70);
-    // bank-angle number under the bank pointer (only when actually banking)
-    if(Math.abs(pB)>=2){ px.textAlign='center'; px.font='600 13px '+FAM;
-      px.fillText(Math.abs(Math.round(pB))+'° '+(pB>0?'R':'L'), CXc, CYc-118); }
-    // destination: bearing & distance to the home field, top-left master block
-    let destTxt='';
+    const mach=gs/sndKt, vs=Math.round((a.vr||0)/50)*50;
     const dap=(NAV&&NAV.apts)?NAV.apts.find(p=>p.id.trim()===HOME.id):null;
+    let destBrg=null,destRng=null,destTtg=null;
     if(dap){ const dn=(dap.lat-a.lat)*60, de=(dap.lon-a.lon)*cosL*60;
-      const dd=Math.hypot(dn,de), br=((Math.atan2(de,dn)/D2R)%360+360)%360;
-      destTxt='◈ '+HOME.id+'  '+dd.toFixed(1)+'NM  '+String(Math.round(br)).padStart(3,'0')+'°'; }
-    px.fillStyle=GRN; px.textAlign='left'; px.textBaseline='alphabetic'; px.font='700 15px '+FAM;
-    px.fillText('NAV', 24, 30);
-    px.font='600 14px '+FAM; px.fillStyle='#ffd60a'; px.fillText(destTxt, 24, 52);
-    // route (top-right)
-    px.fillStyle=GRN; px.textAlign='right'; px.font='600 14px '+FAM;
-    px.fillText(a.cs+(a.rte?'  '+a.rte:''), W-24, 30);
-    // bottom caption bar
-    const vs=Math.round((a.vr||0)/50)*50;
+      destRng=Math.hypot(dn,de); destBrg=((Math.atan2(de,dn)/D2R)%360+360)%360;
+      if(gs>20) destTtg=destRng/gs*3600; }
+    // ── Garmin glass-PFD skin: replace the fighter HUD entirely ──
+    if(skin==='g1000'){ drawG1000(a,gs,alt0,agl,mach,vs,dap,destBrg,destRng);
+      title.innerHTML=a.cs+' <small>'+(a.t?a.t+' · ':'')+'GARMIN-STYLE PFD</small>'; return; }
+    drawAirports(a); drawDestination(a); drawTraffic(a);
+    // HUD symbology
+    pitchLadder(); bankScale(); velVector(); headingTape(a.trk||0);
+    const gload=1/Math.cos(Math.min(80,Math.abs(pB))*D2R);
+    // airspeed scale (left) and altitude scale (right) — moving ticked tapes
+    hudTape(210,'left','GS KT', gs, 3.0, 10, 50, v=>String(v),
+            String(Math.round(gs)), 'M '+mach.toFixed(2));
+    hudTape(W-210,'right','ALT FT', alt0, 0.045, 500, 1000, v=>String(v),
+            String(Math.round(alt0)), agl+' AGL');
+    // vertical speed as a number just above the altitude value box
+    { px.fillStyle=GRN; px.textAlign='center'; px.textBaseline='alphabetic'; px.font='700 16px '+FAM;
+      px.fillText('V/S '+(vs>0?'+':'')+vs, W-210+56, CYc-32); }
+    // G-load under the airspeed tape
+    px.fillStyle=GRN; px.textAlign='center'; px.textBaseline='alphabetic'; px.font='600 15px '+FAM;
+    px.fillText(gload.toFixed(1)+' G', 210-56, CYc+196+34);
+    // bank-angle number under the bank pointer (only when actually banking)
+    if(Math.abs(pB)>=2){ px.textAlign='center'; px.textBaseline='middle'; px.font='600 13px '+FAM;
+      px.fillText(Math.abs(Math.round(pB))+'° '+(pB>0?'R':'L'), CXc, CYc-118); }  // under the top bank arc
+    // master mode (top-left, green) + callsign/route (top-right, its own colour)
+    px.fillStyle='#39ff64'; px.textAlign='left'; px.textBaseline='alphabetic'; px.font='700 16px '+FAM;
+    px.fillText('NAV', 24, 32);
+    // callsign / route / squawk — no box, each its own colour, thin dark halo for legibility
+    px.textAlign='right'; px.textBaseline='alphabetic'; px.lineJoin='round';
+    const hudLbl=(txt,x,y,col,font)=>{ px.font=font; px.lineWidth=3.5; px.strokeStyle='rgba(0,0,0,.72)';
+      px.strokeText(txt,x,y); px.fillStyle=col; px.fillText(txt,x,y); return px.measureText(txt).width; };
+    { let x=W-24;
+      if(a.rte){ x-=hudLbl(a.rte, x, 32, '#39ff64', '600 15px '+FAM)+10; }   // route: green
+      hudLbl(a.cs, x, 32, '#38e6ff', '700 16px '+FAM); }                     // callsign (N-number): cyan
+    if(a.sq) hudLbl('SQ '+a.sq, W-24, 51, '#ffc340', '600 14px '+FAM);       // squawk: amber
+    // destination waypoint block — lower right, F/A-18 style
+    if(dap){
+      const dd=destRng, br=destBrg;
+      const rx=W-24; let ry=H-142;
+      px.textAlign='right'; px.textBaseline='alphabetic';
+      // stacked, four distinct colours: airport amber, BRG magenta, RNG cyan, TTG green
+      px.fillStyle=C_DEST; px.font='700 20px '+FAM; px.fillText('◈ '+HOME.id, rx, ry);
+      px.font='600 16px '+FAM;
+      px.fillStyle=C_NAV; px.fillText('BRG '+String(Math.round(br)).padStart(3,'0')+'°', rx, ry+24);
+      px.fillStyle=C_POS; px.fillText('RNG '+dd.toFixed(1)+' NM', rx, ry+45);
+      if(gs>20){ const ttg=dd/gs*3600, mm=Math.floor(ttg/60), ss=Math.round(ttg%60);
+        px.fillStyle=C_TTG; px.fillText('TTG '+mm+':'+String(ss).padStart(2,'0'), rx, ry+66); }
+    }
+    // glideslope + localizer needles when established on an ILS into the home field
+    { const ils=activeILS(a); if(ils) drawILSNeedles(ils, GRN, CYc+150); }
+    // bottom caption bar (V/S now shown graphically on the VSI beside the alt tape)
     px.fillStyle=GRN; px.textAlign='center'; px.font='600 14px '+FAM;
-    px.fillText('V/S '+(vs>0?'+':'')+vs+' FPM   ·   FPA '+(pP>=0?'+':'')+pP.toFixed(1)+'°', CXc, H-40);
+    px.fillText('FPA '+(pP>=0?'+':'')+pP.toFixed(1)+'°', CXc, H-40);
     px.fillStyle=GRND; px.font='600 12px '+FAM;
     px.fillText('COCKPIT VIEW · '+a.cs+(a.t?' · '+a.t:'')+'   —   TRAFFIC & FIELDS SHOWN IN PERSPECTIVE · ESC TO EXIT', CXc, H-20);
   }
@@ -2620,12 +4023,52 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     try{ if(terrCvs.width){ const d=terrCvs.getContext('2d').getImageData(0,0,terrCvs.width,terrCvs.height);
       terrPix=d.data; tRows=terrCvs.height; tCols=terrCvs.width; } }catch(e){ terrPix=null; }
     const s=att(selected); pB=s.bank; pP=s.fpa;
+    try{ fetchTerrain(); }catch(e){}                       // ensure GPU mountains are loaded for the cockpit view
     open=true; modal.classList.add('show'); closeBtn.focus(); loop();
   }
   function closeHUD(){ open=false; modal.classList.remove('show'); if(raf) cancelAnimationFrame(raf); }
   chipKeys(btn,openHUD); chipKeys(closeBtn,closeHUD);
+  // G1000 skin toggle (fighter HUD ↔ Garmin-style glass PFD), remembered across sessions
+  const skinBtn=document.getElementById('pfdSkin');
+  skinBtn.classList.toggle('on', skin==='g1000');
+  chipKeys(skinBtn,()=>{ skin=(skin==='g1000')?'hud':'g1000';
+    skinBtn.classList.toggle('on', skin==='g1000');
+    try{ localStorage.setItem('frtv_pfdskin', skin); }catch(e){} });
+  // prev/next-aircraft arrows: fly the next/previous plane without leaving the HUD
+  function cycleAC(dir){
+    const list=(AC||[]).filter(o=>o.cs && o.lat!=null && o.lon!=null)
+                       .sort((p,q)=>(p.cs<q.cs?-1:p.cs>q.cs?1:0));
+    if(list.length<2) return;
+    let i=list.indexOf(selected); if(i<0) i=0;
+    selected=list[(i+dir+list.length)%list.length];
+    try{ updPanel(); }catch(_){}
+    const s=att(selected); pB=s.bank; pP=s.fpa;
+  }
+  chipKeys(document.getElementById('pfdPrev'),()=>cycleAC(-1));
+  chipKeys(document.getElementById('pfdNext'),()=>cycleAC(1));
+  // click a traffic block to fly that plane instead (switch the HUD to it)
+  cv.addEventListener('click',e=>{
+    if(!open) return;
+    const r=cv.getBoundingClientRect();
+    const lx=(e.clientX-r.left)/r.width*W, ly=(e.clientY-r.top)/r.height*H;
+    let best=null,bd=28*28;
+    for(const h of hudHits){ const dx=h.x-lx,dy=h.y-ly,d=dx*dx+dy*dy; if(d<bd){bd=d;best=h.o;} }
+    if(best){ selected=best; try{updPanel();}catch(_){} const s=att(best); pB=s.bank; pP=s.fpa; }
+  });
+  cv.style.cursor='pointer';
   modal.addEventListener('click',e=>{ if(e.target===modal) closeHUD(); });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&open) closeHUD(); });
+  // #hud → auto-open the cockpit HUD; prefer a plane established on an ILS into the
+  // field (best demo — you get glideslope/localizer needles), else nearest airborne.
+  if(/[#&]hud\b/.test(location.hash)){ let tries=0; (function waitAC(){
+    const air=(AC||[]).filter(x=>!x.gnd&&x.cs);
+    let pick=null;
+    for(const x of air){ cosL=Math.cos(x.lat*D2R); if(activeILS(x)&&(!pick||nmDist(x)<nmDist(pick))) pick=x; }
+    if(!pick && tries++<8){ setTimeout(waitAC,600); return; }   // keep looking ~5 s for an on-ILS plane
+    if(!pick){ air.sort((p,q)=>nmDist(p)-nmDist(q)); pick=air[0]; }
+    if(!pick){ setTimeout(waitAC,600); return; }
+    selected=pick; updPanel(); setTimeout(openHUD,400);
+  })(); }
 })();
 
 /* ================= audio meter (fake) ================= */
