@@ -87,6 +87,13 @@
          display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
   .photo svg{opacity:.85;}
   .photo .note{color:#4A545D;font-size:12px;letter-spacing:.14em;}
+  .photo.hasimg{cursor:zoom-in;}
+  /* click-to-zoom: 2.3× from the photo's own centre (stays in place). Strip all the frame chrome
+     so ONLY the plane photo enlarges — no box, border, background or blurred backdrop around it. */
+  .photo.zoom{transform:scale(2.3);transform-origin:center center;z-index:40;cursor:zoom-out;
+        border-color:transparent;background:none;box-shadow:none;transition:transform .16s ease;}
+  .photo.zoom #photoBg{display:none!important;}   /* beat the inline display:block → no blurred backdrop */
+  @media (prefers-reduced-motion: reduce){ .photo.zoom{transition:none;} }
   .credit{margin-top:6px;color:#4A545D;font-size:12px;text-align:right;}
 
   .cs{margin-top:18px;display:flex;align-items:baseline;gap:12px;}
@@ -398,7 +405,7 @@
       <span class="note" id="photoNote">AWAITING TRAFFIC</span>
       <img id="photoBg" alt="" aria-hidden="true" style="display:none;position:absolute;inset:0;
            width:100%;height:100%;object-fit:cover;border-radius:3px;
-           filter:blur(16px) brightness(.5) saturate(1.1);transform:scale(1.12);">
+           filter:blur(26px) brightness(.28) saturate(.9);transform:scale(1.18);">
       <img id="photoImg" alt="" style="display:none;position:absolute;inset:0;
            width:100%;height:100%;object-fit:contain;border-radius:3px;">
     </div>
@@ -1978,6 +1985,7 @@ function ingest(list){
     if(!a){ a={hex,trail:[],trk:0}; acIx[hex]=a; AC.push(a); }
     a.cs=(t.flight||'').trim()||hex;                       // gotcha: trailing spaces
     a.t=(t.t||'').trim(); a.sq=t.squawk||'';
+    a.reg=(t.r||'').trim().toUpperCase();                  // registration/tail from the feed
     a.lat=t.lat; a.lon=t.lon;
     a.gnd=(t.alt_baro==='ground');                         // gotcha: string "ground"
     a.alt=a.gnd?0:(typeof t.alt_baro==='number'?t.alt_baro:(t.alt_geom||0));
@@ -2066,20 +2074,25 @@ async function typePhoto(a){
   const key=a.t||('reg:'+(a.cs||a.hex||''));   // cache by type, or by tail when untyped
   if(!key||key==='reg:') return null;
   if(typePhotoCache[key]) return typePhotoCache[key];   // cache successes only — retry after a failure
-  let term=a.t?TYPE_NAMES[a.t]:null;
-  if(!term){                                   // unknown code → ask adsbdb for make/model
+  let term=null;
+  // For US tail numbers, take the N-number to the FAA registry and use ITS make/model —
+  // the authoritative type. The feed's type code is sometimes wrong (it's what showed a
+  // twin for a single), so the registry wins over a.t for anything with an N-number.
+  const ntail=(/^N\d/.test(a.reg||'')?a.reg:/^N\d/.test(a.cs||'')?a.cs:'').replace(/^N/,'');
+  if(ntail){
+    try{
+      const r=await fetch('/api/reg?n='+encodeURIComponent(ntail),{signal:sig(9000)});
+      const j=await r.json();
+      if(j&&j.model) term=makerTerm(j.mfr,j.model);
+    }catch(e){}
+  }
+  if(!term) term=a.t?TYPE_NAMES[a.t]:null;      // known ICAO type code → friendly name
+  if(!term){                                    // still unknown → ask adsbdb for make/model
     try{
       const r=await fetch('https://api.adsbdb.com/v0/aircraft/'+a.hex,{signal:sig(9000)});
       const j=await r.json();
       const ac=j.response&&j.response.aircraft;
       if(ac&&ac.manufacturer) term=makerTerm(ac.manufacturer,ac.type);
-    }catch(e){}
-  }
-  if(!term && /^N\d/.test(a.cs||'')){          // still nothing → FAA registry by tail #
-    try{
-      const r=await fetch('/api/reg?n='+encodeURIComponent(a.cs.replace(/^N/,'')),{signal:sig(9000)});
-      const j=await r.json();
-      if(j&&j.model) term=makerTerm(j.mfr,j.model);
     }catch(e){}
   }
   if(!term) term=(a.t||'').trim();               // last resort: search the raw type code
@@ -2115,47 +2128,66 @@ async function loadPhoto(a){
   const bg=document.getElementById('photoBg');
   const note=document.getElementById('photoNote');
   const cred=document.getElementById('photoCred');
-  if(!a){ img.style.display=bg.style.display='none'; note.textContent='AWAITING TRAFFIC'; return; }
+  const frame=document.querySelector('.photo');
+  if(!a){ img.style.display=bg.style.display='none'; note.textContent='AWAITING TRAFFIC';
+          frame.classList.remove('hasimg','zoom'); return; }
   if(a.hex===photoHex) return;
   photoHex=a.hex;
+  frame.classList.remove('zoom');                // new plane → back to normal size
   const show=p=>{
     if(photoHex!==a.hex) return;                 // stale response
     // The whole plane is always shown un-cropped (object-fit: contain); a blurred, dimmed
     // copy fills the frame behind it so odd-aspect Wikipedia photos don't float in empty dark.
     if(p){ img.src=p.src; bg.src=p.src; img.style.display=bg.style.display='block';
-           cred.textContent=p.type?('TYPE · '+p.cred):p.similar?'SIMILAR AIRCRAFT':''; }
+           cred.textContent=p.type?('TYPE · '+p.cred):p.similar?'SIMILAR AIRCRAFT':'';
+           frame.classList.add('hasimg'); }
     else{ img.style.display=bg.style.display='none';
           note.textContent=a.t?('NO PHOTO · '+a.t):'NO PHOTO ON FILE';
-          cred.textContent=''; }
+          cred.textContent=''; frame.classList.remove('hasimg','zoom'); }
   };
   if(a.hex in photoCache){ show(photoCache[a.hex]); return; }
-  // show a same-type/livery example immediately while the exact photo loads
+  // A same-type/livery example is only a safe stand-in for AIRLINERS (their type/livery is
+  // reliable). For GA it's misleading — a mislabeled type made N171RA show a "big twin" — so
+  // GA never borrows another plane's photo; it must be the exact tail or the FAA-typed image.
   const kk=kindKey(a);
-  if(photoByKind[kk]) show({...photoByKind[kk], similar:true});
+  const airline=kk.includes('|');                  // airline key = "AAL|B738"; GA key = type only
+  if(airline && photoByKind[kk]) show({...photoByKind[kk], similar:true});
   else{ img.style.display='none'; note.textContent='LOADING PHOTO…'; }
   let p=null;
-  try{
-    const r=await fetch('https://api.planespotters.net/pub/photos/hex/'+a.hex,
-                        {signal:sig(9000)});
-    const j=await r.json();
-    if(j.photos&&j.photos.length){
-      const ph=j.photos[0];
-      p={src:ph.thumbnail_large.src,
-         cred:'© '+(ph.photographer||'unknown')+' · planespotters.net'};
-    }
-  }catch(e){}
-  if(!p){                                        // GA fallback, roughly 2x coverage
+  // planespotters returns the same shape for /reg/ and /hex/. Query by REGISTRATION first
+  // (the tail number you read off the screen — the most reliable match), then by Mode-S hex,
+  // so a stale hex↔tail mapping in the feed can't pull up the wrong aircraft.
+  const reg=(a.reg||(/^N\d/.test(a.cs||'')?a.cs:'')||'').trim().toUpperCase();
+  const psGet=async url=>{
     try{
-      const r=await fetch('https://airport-data.com/api/ac_thumb.json?m='+a.hex+'&n=1',
-                          {signal:sig(9000)});
+      const r=await fetch(url,{signal:sig(9000)});
       const j=await r.json();
-      if(j.data&&j.data.length)
-        p={src:j.data[0].image.replace('/thumbnails',''),
-           cred:'© '+(j.data[0].photographer||'unknown')+' · airport-data.com'};
+      if(j.photos&&j.photos.length){
+        const ph=j.photos[0];
+        return {src:ph.thumbnail_large.src,
+                cred:'© '+(ph.photographer||'unknown')+' · planespotters.net'};
+      }
     }catch(e){}
+    return null;
+  };
+  if(reg) p=await psGet('https://api.planespotters.net/pub/photos/reg/'+encodeURIComponent(reg));
+  if(!p)  p=await psGet('https://api.planespotters.net/pub/photos/hex/'+a.hex);
+  if(!p){                                        // airport-data.com — by tail, then by hex (≈2x GA coverage)
+    for(const q of (reg?['r='+encodeURIComponent(reg),'m='+a.hex]:['m='+a.hex])){
+      try{
+        const r=await fetch('https://airport-data.com/api/ac_thumb.json?'+q+'&n=1',
+                            {signal:sig(9000)});
+        const j=await r.json();
+        if(j.data&&j.data.length){
+          p={src:j.data[0].image.replace('/thumbnails',''),
+             cred:'© '+(j.data[0].photographer||'unknown')+' · airport-data.com'};
+          break;
+        }
+      }catch(e){}
+    }
   }
   if(p){ photoCache[a.hex]=p; photoByKind[kk]=p; show(p); return; }   // exact photo — cache + reuse for same type
-  if(photoByKind[kk]){                             // same-type/livery example seen earlier
+  if(airline && photoByKind[kk]){                  // airliner: same-type/livery example seen earlier
     const sp={...photoByKind[kk], similar:true}; photoCache[a.hex]=sp; show(sp); return;
   }
   // no exact/similar photo → stock photo of the TYPE from the internet (any aircraft,
@@ -2164,6 +2196,13 @@ async function loadPhoto(a){
   if(tp){ photoCache[a.hex]=tp; if(photoHex===a.hex) show(tp); return; }
   show(null);                                      // nothing found — leave uncached so a re-click retries
 }
+
+// ---- click the info-panel photo to zoom just the plane photo in place (toggle) ----
+(function(){
+  const frame=document.querySelector('.photo');
+  frame.addEventListener('click',()=>{ if(frame.classList.contains('hasimg')) frame.classList.toggle('zoom'); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') frame.classList.remove('zoom'); });
+})();
 
 async function fetchRoute(a){
   const cs=a.cs;
@@ -2233,8 +2272,11 @@ function altColor(a){
   return a<10000 ? s.getPropertyValue('--lo') : a<25000 ? s.getPropertyValue('--mid')
                                               : s.getPropertyValue('--hi');
 }
-// GA (N-number) traffic in electric blue; everyone else keeps the altitude bands
+// Military (RCH/NAVY/ARMY/… callsigns) in bright yellow so it stands apart from the
+// altitude bands; GA (N-number) traffic in electric blue; everyone else = altitude bands
+const MILCOL='#FFE24C';
 function acColor(a){
+  if(isMil(a)) return MILCOL;
   if(/^N\d/.test(a.cs||'')) return '#4F8DFF';
   return altColor(a.alt).trim();
 }

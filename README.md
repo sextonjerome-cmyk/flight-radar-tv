@@ -227,9 +227,9 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
 - **Click an airport** — recenters on it and shows its tower/CTAF frequency + weather.
 
 ### What the colors mean
-- **Aircraft:** royal blue = general aviation (N-number); airliners by altitude —
-  **green** below 10,000 ft, **cyan** 10–25,000 ft, **magenta** above 25,000 ft;
-  **amber = the plane you selected**.
+- **Aircraft:** **yellow = military** (RCH/NAVY/ARMY/REACH… callsigns); royal blue =
+  general aviation (N-number); airliners by altitude — **green** below 10,000 ft,
+  **cyan** 10–25,000 ft, **magenta** above 25,000 ft; **amber = the plane you selected**.
 - **Navigation** (Garmin convention): mint green = ILS/LOC, violet = RNAV/GPS & T-routes,
   blue = VORs & Victor airways, cyan = waypoints, tan = NDBs.
 
