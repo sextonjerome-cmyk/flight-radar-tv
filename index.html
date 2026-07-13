@@ -825,7 +825,7 @@ function proj3(lat,lon,altFt){                          // world point → scree
 }
 // ---- WebGL high-resolution terrain (AWS Terrarium DEM tiles on the GPU) ----
 let gl3=null, glProg=null, glVAO=null, glTex=null, glMaskTex=null, glMaskCanvas=null, glIdxN=0, gl3U={},
-    glDrapeTex=null, glTileBox=null, glDrapeSig='',       // EXPERIMENT: drape sec/ifr/sat/dark onto 3D
+    glDrapeTex=null, glTileBox=null, glDrapeSig='',       // drape sec/ifr/sat/dark onto 3D
     glReady=false, glBusy=false, glKey=null, glInit=false, glMinE=0, glMaxE=1,
     glTexel=[1,1], glWorldPerUV=[1,1], glRadNm=60, glWaterE=-99999, glWaterE2=-99999, glSeaMode=0, gl3WaveT=0,
     glHazeN=47, glHazeF=200, glExag=TER_EXAG;
@@ -857,7 +857,7 @@ function initGL(){
   const FS='#version 300 es\nprecision highp float;'+
     'in float vElev; in float vDepth; in vec3 vWorld; in vec3 vNormal; in vec2 vUV;'+
     'uniform float uMinE,uMaxE,uWaterE,uWaterE2,uHazeN,uHazeF,uWaveT,uWaves,uRad; uniform vec3 uSky,uEye; uniform sampler2D uMask;'+
-    'uniform sampler2D uDrape; uniform float uDrapeAmt;'+   // EXPERIMENT: sec/ifr/sat/dark draped on terrain
+    'uniform sampler2D uDrape; uniform float uDrapeAmt;'+   // sec/ifr/sat/dark draped on terrain
     ' out vec4 frag;'+
     'float h21(vec2 p){p=fract(p*vec2(127.1,311.7));p+=dot(p,p+34.5);return fract(p.x*p.y*95.43);}'+
     'float vnz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);'+
@@ -908,7 +908,7 @@ function initGL(){
     '   wcol+=vec3(0.9,0.95,1.0)*tw*0.55;'+
     ' }'+
     ' col=mix(col, wcol, water);'+
-    // EXPERIMENT: drape a chart/satellite/dark basemap over the shaded relief (keeps the
+    // drape a chart/satellite/dark basemap over the shaded relief (keeps the
     // hillshade so the map still looks 3-D). uDrapeAmt=0 → untouched EFIS hypsometric view.
     ' if(uDrapeAmt>0.0){ vec4 dp=texture(uDrape,vUV); col=mix(col, dp.rgb*(0.55+0.65*sh), dp.a*uDrapeAmt); }'+
     // haze relative to camera distance: crisp near the look-at, fully sky far away
@@ -961,7 +961,7 @@ function fetchTerrain(){
   }
   function done(){ try{ bakeWaterMask(sx, x0*256, y0*256, z);      // stamp the precise OSM coastline/rivers into the DEM
       buildTerrainMesh(st, x0*256, y0*256, nx*256, ny*256, world, GN); glReady=true;
-      glTileBox={x0,y0,z,nx,ny}; glDrapeSig=''; updateDrape(); }   // EXPERIMENT: (re)build the basemap drape
+      glTileBox={x0,y0,z,nx,ny}; glDrapeSig=''; updateDrape(); }   // (re)build the basemap drape
     catch(e){ console.warn('terrain build',e); } glBusy=false; }
 }
 // Paint the real OSM water (open sea, estuaries, lakes, rivers) into the DEM heightmap at
@@ -1080,7 +1080,7 @@ function buildTerrainMesh(st, X0, Y0, Wp, Hp, world, GN){
   const ib=g.createBuffer(); g.bindBuffer(g.ELEMENT_ARRAY_BUFFER,ib);
   g.bufferData(g.ELEMENT_ARRAY_BUFFER,idx,g.STATIC_DRAW);
 }
-// EXPERIMENT: build a texture that drapes the current 2-D basemap (SAT/DARK) and chart mixes
+// build a texture that drapes the current 2-D basemap (SAT/DARK) and chart mixes
 // (SEC/IFR) over the 3-D terrain. Each chart layer is one georeferenced image with N/W/S/E
 // bounds; we paint it into a canvas covering the SAME mercator tile box as the mesh, so the
 // mesh's vUV samples it in register. EFIS with no chart mix → transparent → terrain untouched.
@@ -1114,14 +1114,14 @@ function updateDrape(){
 }
 function renderGLTerrain(){
   const g=gl3; if(!g||!glReady) return;
-  if(glTileBox && glDrapeSig!==drapeSig()) updateDrape();   // EXPERIMENT: base/chart changed → rebuild drape
+  if(glTileBox && glDrapeSig!==drapeSig()) updateDrape();   // base/chart changed → rebuild drape
   g.viewport(0,0,g.canvas.width,g.canvas.height);
   g.enable(g.DEPTH_TEST); g.clearColor(0.40,0.53,0.72,1);
   g.clear(g.COLOR_BUFFER_BIT|g.DEPTH_BUFFER_BIT);
   g.useProgram(glProg);
   g.activeTexture(g.TEXTURE0); g.bindTexture(g.TEXTURE_2D,glTex);
   g.activeTexture(g.TEXTURE1); g.bindTexture(g.TEXTURE_2D,glMaskTex); g.uniform1i(uLoc('uMask'),1);
-  // EXPERIMENT: basemap drape on unit 2; amount 0 for EFIS (no chart) → unchanged terrain
+  // basemap drape on unit 2; amount 0 for EFIS (no chart) → unchanged terrain
   g.activeTexture(g.TEXTURE2); g.bindTexture(g.TEXTURE_2D, glDrapeTex||glMaskTex); g.uniform1i(uLoc('uDrape'),2);
   g.uniform1f(uLoc('uDrapeAmt'), (glDrapeTex && (base!=='efis'||mix.sec>0||mix.ifr>0))?1:0);
   g.activeTexture(g.TEXTURE0);

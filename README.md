@@ -159,8 +159,10 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
   mountains standing up, **water** (sea, lakes, rivers) painted in, aircraft floating at
   their real altitude on altitude poles, the runways, and range rings on the ground.
   Terrain is **elevation-coloured** — green valleys → olive → brown → grey rock → snow
-  peaks. The terrain grows with the **RANGE** you pick and softly dissolves into the haze
-  at its edges, so from any angle it fills the horizon instead of sitting on a slab.
+  peaks — or, pick **SAT HYB / DARK** or fade in **SECTIONAL / IFR LOW** and that basemap
+  **drapes over the 3-D terrain** (keeping the hillshade), so the map itself gets relief;
+  **EFIS** returns to the elevation colouring. The terrain grows with the **RANGE** you pick
+  and softly dissolves into the haze at its edges, so it fills the horizon, not a flat slab.
   **Drag to orbit, mouse-wheel to zoom** — it slowly auto-orbits until you touch it.
   The **SHOW** overlays (airspace, ILS/RNAV approaches, airways, waypoints, navaids) are drawn
   in perspective too — airspace as standing 3-D volumes.
