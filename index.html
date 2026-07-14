@@ -2086,9 +2086,14 @@ function ingest(list){
     a.cs=(t.flight||'').trim()||hex;                       // gotcha: trailing spaces
     a.t=(t.t||'').trim(); a.sq=t.squawk||'';
     a.reg=(t.r||'').trim().toUpperCase();                  // registration/tail from the feed
-    a.lat=t.lat; a.lon=t.lon;
+    // Store the authoritative fix + arrival time; the animation loop eases the DRAWN
+    // position toward this fix's dead-reckoned projection, so a late/stale poll never
+    // snaps the target back to an older spot (the ~5 s "rubber-band" jitter).
+    a.rlat=t.lat; a.rlon=t.lon; a.rAt=now;
+    if(a.lat==null){ a.lat=t.lat; a.lon=t.lon; }           // brand-new target: place immediately
     a.gnd=(t.alt_baro==='ground');                         // gotcha: string "ground"
-    a.alt=a.gnd?0:(typeof t.alt_baro==='number'?t.alt_baro:(t.alt_geom||0));
+    a.ralt=a.gnd?0:(typeof t.alt_baro==='number'?t.alt_baro:(t.alt_geom||0));
+    if(a.alt==null) a.alt=a.ralt;
     // rate of turn (deg/s) between polls — drives the PFD's synthetic bank
     if(t.track!=null){
       if(a.trkAt){ const dts=(now-a.trkAt)/1000;
@@ -2459,13 +2464,25 @@ function drawAC(){
 let selected=null, lastTrail=0;
 let clkPlane=null, clkN=0, clkT=0;                         // triple-click a plane → open the HUD
 function step(dt){
-  // dead-reckon between polls so motion is smooth (~30 fps, not 5 s jumps)
+  // Smooth motion between polls WITHOUT the per-poll snap. Each frame we project the
+  // latest ADS-B fix forward by dead reckoning (from the fix, using its time), then EASE
+  // the drawn position toward that projection. Between polls the projection glides along;
+  // when a new (slightly stale) poll arrives the target shifts only by a small correction,
+  // which the easing absorbs over a few frames instead of jumping (the old rubber-band).
+  const now=performance.now();
+  const k=Math.min(1,dt*5);                       // easing rate (~0.2 s to close a gap)
   for(const a of AC){
-    if(a.gnd||!a.gs) continue;
-    const d=a.gs/3600*dt;                        // nm travelled
-    const r=a.trk*Math.PI/180;
-    a.lat+=Math.cos(r)*d/60; a.lon+=Math.sin(r)*d/(60*COSLAT);
-    a.alt=Math.max(0,a.alt+a.vr*dt/60);
+    if(a.rlat==null) continue;
+    let plat=a.rlat, plon=a.rlon;
+    if(!a.gnd && a.gs){
+      const age=(now-a.rAt)/1000, d=a.gs/3600*age, r=a.trk*Math.PI/180;
+      plat+=Math.cos(r)*d/60; plon+=Math.sin(r)*d/(60*COSLAT);
+    }
+    const palt=a.gnd?0:Math.max(0,(a.ralt||0)+(a.vr||0)*((now-a.rAt)/1000)/60);
+    if(a.lat==null){ a.lat=plat; a.lon=plon; a.alt=palt; continue; }
+    const gap=Math.hypot((plat-a.lat)*60,(plon-a.lon)*COSLAT*60);
+    if(gap>4){ a.lat=plat; a.lon=plon; a.alt=palt; }         // new track / big jump → snap once
+    else{ a.lat+=(plat-a.lat)*k; a.lon+=(plon-a.lon)*k; a.alt+=(palt-a.alt)*k; }
   }
 }
 // append a timestamped trail point and drop anything older than the retention window
