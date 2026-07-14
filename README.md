@@ -36,15 +36,20 @@ Prefer the computer? Double-click **`SETUP-AIRPORT`**, type the code, then reloa
 browser (`Ctrl+Shift+R`). Either way, every airport you set up is **saved**, so
 switching back to one you've used before is instant.
 
-## 4. Turn on ATC audio
+## 4. ATC audio
 
-ATC audio is the one thing you set up by hand (LiveATC has no automatic option):
+The radio **comes on by itself** — on load it tunes the airport's primary channel and
+starts playing (press **Q** to turn it off/on, **W** to scan all channels). Charleston's
+audio already works.
+
+Setting up feeds for a *new* airport is the one thing you do by hand (LiveATC has no
+automatic option):
 
 1. Open `https://www.liveatc.net/search/?icao=xxxx` for your airport.
 2. Copy a feed's name — the `NAME` in its `NAME.pls` link.
 3. Put it as the `mount` in **`config.js`**, save, reload the browser.
 
-Full example and details are in **`RUNNING.md`**. Charleston's audio already works.
+Full example and details are in **`RUNNING.md`**.
 
 ---
 
@@ -118,7 +123,10 @@ password. (That password gate isn't built in yet; add it when you host it online
 ## Controls — what every button does
 
 The buttons live in the **CONTROLS** box (top-left of the screen) and the **info panel**
-(right side). Click the **CONTROLS** header to collapse or expand the box.
+(right side). Click the **CONTROLS** header — or press **Space** — to collapse or expand
+the box; it also **folds away on its own after a few idle minutes** for a clean TV view.
+Nearly every button has a **hover tooltip** and a **keyboard shortcut** (see
+[Keyboard shortcuts](#keyboard-shortcuts)); turn on the **?** help for plain-English tips.
 
 ### MAP — base map style + chart overlays
 - **EFIS** — the glass-cockpit look: dark map, terrain shading, water. *(default)*
@@ -141,7 +149,9 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
   as a soft translucent **volume** with real vertical depth (the radar texture stacked in altitude
   layers), so storms stand up in perspective.
 - **LOOP** — animate the last ~hour of radar frames so storms visibly move (turns DOPPLER on).
-- **SIG/AIRMET** — live SIGMETs & AIRMETs (hazard advisory areas).
+- **SIG/AIRMET** — live SIGMETs & AIRMETs (hazard advisory areas); in the **3-D** view they
+  stand up as translucent **hazard volumes** (from the reported floor to top altitude), colour-coded
+  by type — red convective, amber SIGMET, purple/blue AIRMETs.
 - **WX DOTS** — colour each nearby airport by **flight category** from its METAR — a coloured
   halo ring: green **VFR** / blue **MVFR** / red **IFR** / magenta **LIFR**.
 
@@ -222,12 +232,18 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
   **Glideslope + localizer needles** appear when it's established on an ILS. Your choice is
   remembered. *(Add `#g1000` to the address — e.g. `#hud&g1000` — to boot straight into it; plain
   `#hud` looks for a plane on approach so you get the needles.)*
+- **Cockpit map bar** — both cockpit views share a top bar to dress the terrain: pick a **basemap**
+  (**EFIS / SAT / DARK**, or fade in **SECT / IFR** with the **– / +** steppers) that drapes over the
+  synthetic-vision terrain, and a **DOPPLER** toggle that shows the live weather **volume** from
+  inside the cockpit. The **G1000 ⇄ HUD** button (green = switch to HUD, purple = switch to G1000)
+  flips between the two skins; each opens on its own default basemap (HUD → SAT, G1000 → EFIS).
 
 ### Clicking around
 - **Click a plane** — selects it: its photo, type, route, altitude, speed, and heading fill
   the panel, and the **▣ HUD** button (in the VIEW row) lights up.
-- **Click the photo** — enlarges just the plane picture in place; click again (or press Esc)
-  to shrink it. Photos are matched by the aircraft's tail number for accuracy.
+- **Click the photo** (or press **Z**) — enlarges just the plane picture in place; click again
+  (or press Esc / Z) to shrink it. Photos are matched by the aircraft's tail number for accuracy.
+- **Double-click the airport identifier** (top-left) — opens **CHANGE AIRPORT** directly.
 - **Click an airport** — recenters on it and shows its tower/CTAF frequency + weather.
 
 ### What the colors mean
@@ -236,6 +252,25 @@ The buttons live in the **CONTROLS** box (top-left of the screen) and the **info
   **cyan** 10–25,000 ft, **magenta** above 25,000 ft; **amber = the plane you selected**.
 - **Navigation** (Garmin convention): mint green = ILS/LOC, violet = RNAV/GPS & T-routes,
   blue = VORs & Victor airways, cyan = waypoints, tan = NDBs.
+
+## Keyboard shortcuts
+
+Every button also has a one-key shortcut (shown in its tooltip). They're ignored while
+you're typing in a box or inside the cockpit view (which has its own controls), except
+where noted.
+
+| Key | Does | Key | Does | Key | Does |
+|---|---|---|---|---|---|
+| **V** | cycle basemap (EFIS→SAT→DARK) — works in 2-D, 3-D **and the cockpit** | **B** | switch 2-D ⇄ 3-D | **Space** | open / close the CONTROLS box |
+| **E / S / K** | EFIS / SAT / DARK basemap | **C / F** | Sectional / IFR chart | **[ ]** / **; '** | Sectional / IFR opacity − + |
+| **A** | airspace (ASP) | **U** | special-use airspace | **I / R** | ILS / RNAV approaches |
+| **P** | waypoints | **N** | navaids | **Y** | airways |
+| **D** | DOPPLER radar | **L** | radar LOOP | **G** | SIG/AIRMET |
+| **O** | WX DOTS | **1–4** | range 10 / 15 / 25 / 50 nm | **5 / 6** | AUTO range / ≤180 |
+| **0** | ATTRACT mode | **, .** | orbit 3-D left / right | **X** | WAVES |
+| **H** | SUN (day/night) | **T** | trails on/off | **- =** | trail time − + |
+| **Q** | ATC audio on/off | **W** | scan channels | **J** | HUD / cockpit |
+| **Z** | enlarge / shrink photo | **M** | CHANGE AIRPORT | **/** | **?** help mode |
 
 ## Good to know
 

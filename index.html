@@ -224,6 +224,7 @@
   #pfdSkin{font-weight:600;}                          /* filled; colour set inline (green=HUD, purple=G1000) */
   #pfdSkin:hover{filter:brightness(1.12);}
   #pfdSkin:focus{outline:none;}
+  #pfdWx{padding:2px 7px;font-size:11px;letter-spacing:.04em;}   /* compact DOPPLER toggle */
   #pfdMapGrp{display:inline-flex;flex-direction:column;gap:3px;}       /* two compact rows */
   #pfdMapGrp .maprow{display:inline-flex;gap:3px;align-items:center;}
   #pfdMapGrp .mapc{padding:2px 7px;font-size:11px;letter-spacing:.04em;}
@@ -283,6 +284,8 @@
             <span class="rchip mapc" data-hbase="efis" tabindex="0">EFIS</span>
             <span class="rchip mapc" data-hbase="sat"  tabindex="0">SAT</span>
             <span class="rchip mapc" data-hbase="dark" tabindex="0">DARK</span>
+            <span class="rchip mapc" id="pfdWx" tabindex="0"
+                  title="Toggle the Doppler weather-radar volume in this view">DOPPLER</span>
           </span>
           <span class="maprow">
             <span class="rchip mapc" data-hmix="sec" tabindex="0">SECT</span>
@@ -399,7 +402,7 @@
         <span class="rchip" id="chgAirport" tabindex="0"
               title="Download a different airport">CHANGE AIRPORT</span>
         <span class="rchip" id="tipsTog" tabindex="0" aria-label="Explain the buttons"
-              title="Explain what the buttons do">?</span>
+              title="Help mode: turn this on, then point at any button, chip or slider for a plain-English explanation of what it does. Click again to turn it off.">?</span>
       </div>
       </div>
     </div>
@@ -419,12 +422,14 @@
 
     <div class="photo" data-tip="Click the plane's photo to enlarge it; click again to shrink.">
       <svg width="150" height="52" viewBox="0 0 150 52" aria-hidden="true">
-        <path d="M8 34 Q40 26 74 26 L104 26 Q128 26 140 31 Q143 33 138 36 L30 40 Q14 40 8 34Z"
-              fill="none" stroke="#39424B" stroke-width="2"/>
-        <path d="M70 27 L58 8 L66 8 L84 26" fill="none" stroke="#39424B" stroke-width="2"/>
-        <path d="M126 30 L122 18 L128 18 L134 29" fill="none" stroke="#39424B" stroke-width="2"/>
-        <circle cx="46" cy="42" r="3" fill="none" stroke="#39424B" stroke-width="2"/>
-        <circle cx="100" cy="42" r="3" fill="none" stroke="#39424B" stroke-width="2"/>
+        <!-- top-down airliner silhouette (nose right) -->
+        <g fill="#39424B">
+          <path d="M14 26 Q14 22.6 24 22 L118 21.6 Q137 22 145 26 Q137 30 118 30.4 L24 30 Q14 29.4 14 26 Z"/>
+          <path d="M92 24 L56 6 L72 24 Z"/>
+          <path d="M92 28 L56 46 L72 28 Z"/>
+          <path d="M34 23 L20 12.5 L44 23.5 Z"/>
+          <path d="M34 29 L20 39.5 L44 28.5 Z"/>
+        </g>
       </svg>
       <span class="note" id="photoNote">AWAITING TRAFFIC</span>
       <img id="photoBg" alt="" aria-hidden="true" style="display:none;position:absolute;inset:0;
@@ -1393,30 +1398,32 @@ function texTri(c,img,x0,y0,x1,y1,x2,y2,u0,v0,u1,v1,u2,v2){
 // altitudes into a soft translucent volume (fading toward the top) so weather has real vertical
 // depth in perspective without the blocky per-cell look. Each layer is sub-quadded so a tile
 // that rotates partly behind the camera still draws its visible part.
-function drawWeather3(){
+// shared NEXRAD volume: stacked translucent layers of the radar texture, drawn through
+// any perspective projection (proj3 for the orbit view, the HUD's proj for the cockpit)
+function weatherVolume(c, projFn, gz){
   if(!ovl.wx || !wxTiles.length) return;
-  const WT=wxTiles;
-  const gz=elevFtAt(CTR.lat,CTR.lon), G=5, LAYERS=14, TOP=11000;   // G = tile subdivision: high → smooth texture, no blocks
-  ctx.imageSmoothingEnabled=true;
+  const WT=wxTiles, G=5, LAYERS=14, TOP=11000;             // G = tile subdivision: high → smooth texture, no blocks
+  c.imageSmoothingEnabled=true;
   for(let L=0;L<LAYERS;L++){
     const f=L/(LAYERS-1), alt=gz+TOP*f;
-    ctx.globalAlpha=0.11*(1-0.5*f*f);                     // many close layers → full, smooth volume, fainter aloft
+    c.globalAlpha=0.11*(1-0.5*f*f);                        // many close layers → full, smooth volume, fainter aloft
     for(const t of WT){
       if(!(t.img.complete && t.img.naturalWidth)) continue;
       const w=t.img.naturalWidth, h=t.img.naturalHeight;
-      for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+      for(let r=0;r<G;r++)for(let cc=0;cc<G;cc++){
         const la0=t.N+(t.S-t.N)*r/G, la1=t.N+(t.S-t.N)*(r+1)/G;
-        const lo0=t.W+(t.E-t.W)*c/G, lo1=t.W+(t.E-t.W)*(c+1)/G;
-        const p00=proj3(la0,lo0,alt), p01=proj3(la0,lo1,alt), p11=proj3(la1,lo1,alt), p10=proj3(la1,lo0,alt);
+        const lo0=t.W+(t.E-t.W)*cc/G, lo1=t.W+(t.E-t.W)*(cc+1)/G;
+        const p00=projFn(la0,lo0,alt), p01=projFn(la0,lo1,alt), p11=projFn(la1,lo1,alt), p10=projFn(la1,lo0,alt);
         if(!p00||!p01||!p11||!p10) continue;
-        const u0=c/G*w,u1=(c+1)/G*w,v0=r/G*h,v1=(r+1)/G*h;
-        texTri(ctx,t.img, p00.x,p00.y,p01.x,p01.y,p11.x,p11.y, u0,v0,u1,v0,u1,v1);
-        texTri(ctx,t.img, p00.x,p00.y,p11.x,p11.y,p10.x,p10.y, u0,v0,u1,v1,u0,v1);
+        const u0=cc/G*w,u1=(cc+1)/G*w,v0=r/G*h,v1=(r+1)/G*h;
+        texTri(c,t.img, p00.x,p00.y,p01.x,p01.y,p11.x,p11.y, u0,v0,u1,v0,u1,v1);
+        texTri(c,t.img, p00.x,p00.y,p11.x,p11.y,p10.x,p10.y, u0,v0,u1,v1,u0,v1);
       }
     }
   }
-  ctx.globalAlpha=1;
+  c.globalAlpha=1;
 }
+function drawWeather3(){ weatherVolume(ctx, proj3, elevFtAt(CTR.lat,CTR.lon)); }
 function renderScene3(dt,fam){
   const r3=document.getElementById('radar3d');
   if(CAM3.auto) CAM3.az=(CAM3.az+dt*CAM3.spd*CAM3.dir+360)%360;   // slow cinematic orbit (dir = left/right)
@@ -3030,16 +3037,23 @@ document.getElementById('homeReset').addEventListener('click',resetHome);
   inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();testAdd();} });
 })();
 // hint: tapping an airport recenters on it and shows its CTAF
-// collapsible control panel
+// collapsible control panel (manual toggle + auto-fold when left idle)
 const ctlTog=document.getElementById('ctlTog');
-const doCollapse=()=>{
-  const box=document.getElementById('ctlBox');
-  box.classList.toggle('collapsed');
-  document.getElementById('ctlTogIcon').textContent=
-    box.classList.contains('collapsed')?'▸':'▾';
-};
+const ctlBox=document.getElementById('ctlBox');
+function setCollapsed(v){
+  ctlBox.classList.toggle('collapsed', v);
+  document.getElementById('ctlTogIcon').textContent = v?'▸':'▾';
+}
+const doCollapse=()=>{ setCollapsed(!ctlBox.classList.contains('collapsed')); resetCtlIdle(); };
 ctlTog.addEventListener('click',doCollapse);
 ctlTog.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();doCollapse();} });
+// fold the controls away after a few minutes with no interaction on them (clean TV view);
+// any click/key/scroll on the panel restarts the timer, and re-opening it starts it fresh
+let ctlIdleT=null; const CTL_IDLE_MS=3*60*1000;
+function resetCtlIdle(){ clearTimeout(ctlIdleT);
+  ctlIdleT=setTimeout(()=>setCollapsed(true), CTL_IDLE_MS); }
+['pointerdown','keydown','wheel'].forEach(ev=>ctlBox.addEventListener(ev,resetCtlIdle,true));
+resetCtlIdle();
 document.querySelectorAll('.rchip[data-x]').forEach(c=>chipKeys(c,()=>{
   if(c.dataset.x==='alt'){ altFilter=!altFilter; c.classList.toggle('on',altFilter); }
   else{ autoRange=!autoRange; c.classList.toggle('on',autoRange); }
@@ -3245,6 +3259,26 @@ document.getElementById('scanChip').addEventListener('click',()=>{
 });
 const volEl=document.getElementById('vol');
 volEl.addEventListener('input',()=>{ if(masterGain) masterGain.gain.value=volEl.value/100; });
+// Start with ATC on: tune the primary (highest-priority) channel automatically. Browsers block
+// autoplay without a gesture, so if the first play is refused we start on the first click/keypress.
+(function atcAutostart(){
+  if(!CHANNELS.length) return;
+  const ch=CHANNELS[0];
+  const start=()=>{ if(!atcOn) return;
+    if(CHANNELS.some(c=>!c.el.paused)) return;          // something already playing → don't double up
+    ensureGraph(); try{ actx.resume(); }catch(e){}
+    manualCh=ch; ch.tries=0; chPlay(ch);
+    setOnAir('on','ON AIR · '+ch.label); chipRefresh(); };
+  ensureGraph(); try{ actx.resume(); }catch(e){}
+  if(!ch.el.src) ch.el.src='/atc/'+ch.mt;
+  manualCh=ch;
+  const p=ch.el.play();
+  if(p) p.then(()=>{ setOnAir('on','ON AIR · '+ch.label); chipRefresh(); })
+        .catch(()=>{                                     // autoplay blocked → arm a one-time gesture
+          const kick=()=>{ removeEventListener('pointerdown',kick,true); removeEventListener('keydown',kick,true); start(); };
+          addEventListener('pointerdown',kick,true); addEventListener('keydown',kick,true); });
+  chipRefresh();
+})();
 
 /* ============ plain-English button tips (toggled by the BUTTON TIPS chip) ============ */
 const TIPS={
@@ -3272,7 +3306,11 @@ const TIPS={
   mix:{ sec:'Fade an official VFR pilot map (roads, towns, airspace) over the top.',
         ifr:'Fade an official instrument-navigation chart over the top.' },
   id:{ chgAirport:'Download and switch the whole display to a different airport.',
-       tipsTog:'Show a short plain-English tip when you point at a button.',
+       tipsTog:'Turn on Help mode. While it is on, point at any button, chip or slider on the '
+             +'screen and a short plain-English explanation of what it does pops up next to it — '
+             +'no clicking needed. Great for finding your way around the map, weather, airspace and '
+             +'3-D view controls. Click the “?” again to turn Help mode off. (Every button also shows '
+             +'a quick tooltip on hover on its own.)',
        pfdBtn:'Fly along inside the selected plane — a first-person HUD view, with the runway in yellow.',
        homeReset:'Recenter the map back on your home airport.',
        atcPower:'Turn the live control-tower radio on or off.',
@@ -3292,10 +3330,78 @@ function applyTips(){
     else if(d.mix) t=TIPS.mix[d.mix];
     else if(d.mixd!==undefined||d.mixu!==undefined) t='Make that chart fainter or stronger.';
     else if(el.id&&TIPS.id[el.id]) t=TIPS.id[el.id];
-    if(t) el.setAttribute('data-tip',t);
+    if(t){ el.setAttribute('data-tip',t);
+      if(!el.getAttribute('title')) el.setAttribute('title',t);   // native hover tooltip on every button, no "?" needed
+    }
   });
 }
 applyTips();
+/* ============ keyboard shortcuts — one key per control, listed in its tooltip ============ */
+const KEYMAP=[
+  ['e','.rchip[data-b="efis"]'], ['s','.rchip[data-b="sat"]'], ['k','.rchip[data-b="dark"]'],
+  ['c','.rchip[data-mix="sec"]'], ['[','.rchip[data-mixd="sec"]'], [']','.rchip[data-mixu="sec"]'],
+  ['f','.rchip[data-mix="ifr"]'], [';','.rchip[data-mixd="ifr"]'], ["'",".rchip[data-mixu=\"ifr\"]"],
+  ['a','.rchip[data-o="asp"]'], ['u','.rchip[data-o="sua"]'], ['i','.rchip[data-o="ils"]'],
+  ['r','.rchip[data-o="rnav"]'], ['p','.rchip[data-o="wpt"]'], ['n','.rchip[data-o="nav"]'],
+  ['y','.rchip[data-o="awy"]'],
+  ['d','.rchip[data-o="wx"]'], ['l','.rchip[data-o="wxanim"]'], ['g','.rchip[data-o="sig"]'],
+  ['o','.rchip[data-o="wxdot"]'],
+  ['1','.rchip[data-r="10"]'], ['2','.rchip[data-r="15"]'], ['3','.rchip[data-r="25"]'],
+  ['4','.rchip[data-r="50"]'], ['5','.rchip[data-x="auto"]'], ['6','.rchip[data-x="alt"]'],
+  ['0','.rchip[data-o="attract"]'],
+  ['.','#spinR'], [',','#spinL'],
+  ['x','.rchip[data-o="wave"]'], ['h','.rchip[data-o="sun"]'],
+  ['t','#trailTog'], ['-','.rchip[data-trd]'], ['=','.rchip[data-tru]'],
+  ['m','#chgAirport'], ['/','#tipsTog'], ['j','#pfdBtn'],
+  ['q','#atcPower'], ['w','#scanChip'],
+];
+const keyLabel=k=> (k.length===1 && /[a-z]/i.test(k)) ? k.toUpperCase() : k;
+(function(){
+  const byKey={};
+  for(const [k,sel] of KEYMAP){ const el=document.querySelector(sel); if(!el) continue;
+    byKey[k]=el;
+    const hint=' · Key: '+keyLabel(k);
+    const base=el.getAttribute('title')||el.getAttribute('aria-label')||'';
+    if(!/·\sKey:/.test(base)) el.setAttribute('title', (base?base:('Toggle'))+hint);
+    const dt=el.getAttribute('data-tip'); if(dt && !/·\sKey:/.test(dt)) el.setAttribute('data-tip', dt+hint);
+  }
+  // V cycles the basemap (EFIS → SAT → DARK) — in 2D, 3D and the HUD/G1000. Clicking the HUD map
+  // chip keeps every panel in sync (it sets the shared base, rebuilds the map, and syncs the chips).
+  const BASES=['efis','sat','dark'];
+  const cycleBase=()=>{ const i=Math.max(0,BASES.indexOf(base)); const nx=BASES[(i+1)%BASES.length];
+    const el=document.querySelector('#pfdMapGrp [data-hbase="'+nx+'"]') || document.querySelector('.rchip[data-b="'+nx+'"]');
+    if(el) el.click(); };
+  document.querySelectorAll('.rchip[data-b], #pfdMapGrp [data-hbase]').forEach(el=>{ const add=' · V cycles the map';
+    const ti=el.getAttribute('title'); if(ti&&!ti.includes('V cycles the map')) el.setAttribute('title',(ti||'Basemap')+add);
+    const dt=el.getAttribute('data-tip'); if(dt&&!dt.includes('V cycles the map')) el.setAttribute('data-tip',dt+add); });
+  // B switches between the 2D and 3D views
+  const cycleView=()=>{ const cur=document.querySelector('.rchip[data-view].on');
+    const nx=(cur&&cur.dataset.view==='2d')?'3d':'2d';
+    const el=document.querySelector('.rchip[data-view="'+nx+'"]'); if(el) el.click(); };
+  document.querySelectorAll('.rchip[data-view]').forEach(el=>{ const add=' · B switches 2D / 3D';
+    const ti=el.getAttribute('title'); if(ti&&!ti.includes('B switches')) el.setAttribute('title',(ti||'View')+add);
+    const dt=el.getAttribute('data-tip'); if(dt&&!dt.includes('B switches')) el.setAttribute('data-tip',dt+add); });
+  // Space toggles the control panel; Z enlarges/shrinks the selected plane's photo
+  { const ct=document.getElementById('ctlTog');
+    if(ct){ const b=ct.getAttribute('title')||'Show/hide controls'; if(!/Space/.test(b)) ct.setAttribute('title',b+' · Key: Space'); }
+    const ph=document.querySelector('.photo'); if(ph){ const d=ph.getAttribute('data-tip')||''; if(d&&!/Key:/.test(d)) ph.setAttribute('data-tip',d+' · Key: Z'); ph.setAttribute('title','Click or press Z to enlarge the photo; again to shrink.'); } }
+  addEventListener('keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey) return;
+    if(settingsOpen||calibrating) return;                       // those modes own the keyboard
+    const t=e.target;
+    if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return;   // don't hijack typing
+    const key=e.key.length===1?e.key.toLowerCase():e.key;
+    if(key==='v'){ e.preventDefault(); cycleBase(); return; }    // switch basemap — also works in the HUD/G1000
+    if(key==='z'){ const fr=document.querySelector('.photo');    // enlarge / shrink the plane photo
+      if(fr&&fr.classList.contains('hasimg')){ e.preventDefault(); fr.classList.toggle('zoom'); } return; }
+    const pm=document.getElementById('pfdModal'); if(pm&&pm.classList.contains('show')) return; // other shortcuts: HUD has its own controls
+    if(key==='b'){ e.preventDefault(); cycleView(); return; }    // switch 2D / 3D
+    if(key===' '){ if(t&&(t.classList.contains('rchip')||t.classList.contains('chan'))) return; // let a focused chip use Space itself
+      e.preventDefault(); doCollapse(); return; }               // open / close the control panel
+    const el=byKey[key];
+    if(el){ e.preventDefault(); el.click(); }
+  });
+})();
 let tipsOn=false;
 const tipBox=document.getElementById('tip');
 function showTip(el){
@@ -4243,6 +4349,7 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     // world (far → near): terrain, other airports, destination field, traffic
     if(hudGLTerrain()) px.drawImage(r3el, 0, CYc-H/2, W, H);  // real GPU mountains + horizon
     else drawTerrain();                                       // low-res baked fallback
+    weatherVolume(px, proj, elFt(groundM(CTR.lat,CTR.lon)));  // Doppler NEXRAD volume (toggle in the bar)
     // shared derived flight values (used by both PFD skins)
     const gs=a.gs||0;
     const agl=Math.max(0,Math.round((alt0-groundM(a.lat,a.lon)*3.28084)/10)*10);
@@ -4322,6 +4429,7 @@ chipKeys(document.getElementById('tipsTog'),()=>{
     const s=att(selected); pB=s.bank; pP=s.fpa;
     try{ fetchTerrain(); }catch(e){}                       // ensure GPU mountains are loaded for the cockpit view
     try{ syncSkin(); applySkinBase(); }catch(e){}          // set the view's default basemap + button label
+    try{ syncWxBtn(); }catch(e){}                          // reflect current DOPPLER on/off state
     open=true; modal.classList.add('show'); closeBtn.focus(); loop();
   }
   function closeHUD(){ open=false; modal.classList.remove('show'); if(raf) cancelAnimationFrame(raf); }
@@ -4363,6 +4471,14 @@ chipKeys(document.getElementById('tipsTog'),()=>{
   document.querySelectorAll('#pfdMapGrp [data-hmixu]').forEach(el=>chipKeys(el,()=>{ setMix(el.dataset.hmixu, mix[el.dataset.hmixu]+10); syncMapBtn(); }));
   document.querySelectorAll('#pfdMapGrp [data-hmixd]').forEach(el=>chipKeys(el,()=>{ setMix(el.dataset.hmixd, mix[el.dataset.hmixd]-10); syncMapBtn(); }));
   syncMapBtn();
+  // DOPPLER: toggle the NEXRAD weather volume in this view (shares ovl.wx with the 2-D/3-D map)
+  const wxBtn=document.getElementById('pfdWx');
+  function syncWxBtn(){ if(wxBtn) wxBtn.classList.toggle('on', !!ovl.wx); }
+  chipKeys(wxBtn,()=>{ ovl.wx=!ovl.wx;
+    document.querySelectorAll('.rchip[data-o="wx"]').forEach(x=>x.classList.toggle('on',ovl.wx)); // mirror main panel
+    if(ovl.wx && !wxTiles.length){ try{ radarRefresh(); }catch(e){} }
+    try{ buildMap(); }catch(e){} syncWxBtn(); });
+  syncWxBtn();
   // prev/next-aircraft arrows: fly the next/previous plane without leaving the HUD
   function cycleAC(dir){
     const list=(AC||[]).filter(o=>o.cs && o.lat!=null && o.lon!=null)
